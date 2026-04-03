@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/models/droits_result.dart';
 import '../../../core/models/situation.dart';
-import '../../../core/services/calcul_service.dart';
+import '../../../core/services/calcul_local_service.dart';
 import '../../../core/theme/app_theme.dart';
 
 /// Écran de résultats — affiche les droits calculés et l'écart
@@ -28,8 +28,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   Future<void> _calculate() async {
     try {
-      final service = CalculService();
-      final response = await service.calculerDroits(widget.situation);
+      final service = CalculLocalService();
+      final response = service.calculerDroits(widget.situation);
       setState(() {
         _response = response;
         _isLoading = false;
