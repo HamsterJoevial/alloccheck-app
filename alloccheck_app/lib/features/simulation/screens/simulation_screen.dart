@@ -554,7 +554,14 @@ class _SimulationScreenState extends State<SimulationScreen> {
               style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 24),
 
-          ..._percuActifs.entries.map((entry) {
+          // Filtrer les aides selon le contexte
+          // AAH : si handicap coché en étape 1, l'app la calcule — pas besoin de la saisir ici
+          // AF : si < 2 enfants, pas éligible
+          ..._percuActifs.entries.where((entry) {
+            if (entry.key == 'aah' && _aHandicap) return false; // calculée auto
+            if (entry.key == 'af' && _nombreEnfants < 2) return false; // pas éligible
+            return true;
+          }).map((entry) {
             final aide = entry.key;
             final isActive = entry.value;
             final color = AppTheme.aideColors[aide] ?? AppTheme.primary;
@@ -599,6 +606,13 @@ class _SimulationScreenState extends State<SimulationScreen> {
           }),
 
           const SizedBox(height: 16),
+          if (_aHandicap) ...[
+            _buildInfoBox(
+              'L\'AAH est calculée automatiquement à partir de votre taux '
+              'de handicap. Elle n\'apparaît pas ici.',
+            ),
+            const SizedBox(height: 8),
+          ],
           _buildInfoBox(
             'Si vous ne percevez aucune aide, laissez tout décoché. '
             'AllocCheck vous dira si vous y avez droit.',
