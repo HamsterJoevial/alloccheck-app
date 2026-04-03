@@ -79,6 +79,18 @@ class _SimulationScreenState extends State<SimulationScreen> {
   }
 
   void _nextStep() {
+    // Validation avant changement d'étape
+    final error = _validateCurrentStep();
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+      return;
+    }
+
     if (_currentStep < _totalSteps - 1) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
@@ -87,6 +99,52 @@ class _SimulationScreenState extends State<SimulationScreen> {
       setState(() => _currentStep++);
     } else {
       _submitSimulation();
+    }
+  }
+
+  String? _validateCurrentStep() {
+    switch (_currentStep) {
+      case 0: // Famille — toujours valide (défauts OK)
+        return null;
+      case 1: // Revenus
+        if (_sourceRevenuDemandeur != SourceRevenuActivite.aucun) {
+          final revenu = double.tryParse(_revenuDemandeurController.text.replaceAll(',', '.')) ?? 0;
+          if (revenu <= 0) {
+            return 'Indiquez votre revenu mensuel net.';
+          }
+        }
+        // Vérifier que les autres revenus cochés ont un montant saisi (si saisie requise)
+        for (final entry in _autresRevenusActifs.entries) {
+          if (entry.value && entry.key.saisieRequise) {
+            final montant = double.tryParse(
+                _autresRevenusControllers[entry.key]!.text.replaceAll(',', '.')) ?? 0;
+            if (montant <= 0) {
+              return 'Indiquez le montant pour "${entry.key.label}".';
+            }
+          }
+        }
+        return null;
+      case 2: // Logement
+        if (_statutLogement == StatutLogement.locataire) {
+          final loyer = double.tryParse(_loyerController.text.replaceAll(',', '.')) ?? 0;
+          if (loyer <= 0) {
+            return 'Indiquez votre loyer mensuel.';
+          }
+        }
+        return null;
+      case 3: // Perçu — toujours valide (rien coché = OK)
+        for (final entry in _percuActifs.entries) {
+          if (entry.value) {
+            final montant = double.tryParse(
+                _percuControllers[entry.key]!.text.replaceAll(',', '.')) ?? 0;
+            if (montant <= 0) {
+              return 'Indiquez le montant perçu pour ${AppTheme.aideLabels[entry.key]}.';
+            }
+          }
+        }
+        return null;
+      default:
+        return null;
     }
   }
 

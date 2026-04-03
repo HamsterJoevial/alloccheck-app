@@ -6,6 +6,6 @@ void main() {
     await tester.pumpWidget(const AllocCheckApp());
 
     expect(find.text('AllocCheck'), findsOneWidget);
-    expect(find.text('Vérifier mes droits'), findsOneWidget);
+    expect(find.text('Vérifier vos droits'), findsOneWidget);
   });
 }

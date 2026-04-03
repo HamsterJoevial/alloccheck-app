@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'core/theme/app_theme.dart';
 import 'core/models/situation.dart';
+import 'core/models/droits_result.dart';
 import 'features/simulation/screens/simulation_screen.dart';
 import 'features/results/screens/results_screen.dart';
+import 'features/letter/screens/letter_screen.dart';
 
 void main() {
   runApp(const AllocCheckApp());
@@ -28,6 +30,15 @@ class AllocCheckApp extends StatelessWidget {
             final situation = settings.arguments as Situation;
             return MaterialPageRoute(
               builder: (_) => ResultsScreen(situation: situation),
+            );
+          case '/letter':
+            final args = settings.arguments as Map<String, dynamic>;
+            return MaterialPageRoute(
+              builder: (_) => LetterScreen(
+                situation: args['situation'] as Situation,
+                droits: args['droits'] as DroitsResult,
+                ecart: args['ecart'] as EcartResult,
+              ),
             );
           default:
             return MaterialPageRoute(
@@ -75,7 +86,7 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Vérifie tes droits CAF\nen 3 minutes',
+                'Vérifiez vos droits CAF\nen 3 minutes',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: AppTheme.textSecondary,
                     ),
@@ -104,7 +115,7 @@ class HomeScreen extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 18),
                   ),
-                  child: const Text('Vérifier mes droits'),
+                  child: const Text('Vérifier vos droits'),
                 ),
               ),
               const SizedBox(height: 12),
@@ -115,6 +126,7 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'Outil d\'aide à la compréhension de vos droits.\nNe constitue pas un conseil juridique.',
+                // Disclaimer déjà en vouvoiement — OK
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 10),
                 textAlign: TextAlign.center,
               ),
