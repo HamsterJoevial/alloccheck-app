@@ -2,9 +2,9 @@
 *Dernière MAJ : 2026-04-03*
 
 ## Pipeline
-- Phase courante : 3
-- Sous-étape : création artefacts projet
-- Statut : running
+- Phase courante : 7
+- Sous-étape : livraison
+- Statut : completed (REVIEW)
 
 ## Seed
 - Pitch : Tu sais enfin ce que la CAF te doit vraiment.
@@ -21,9 +21,9 @@ Variante retenue : Web + Mobile (Next.js SEO + Flutter rétention)
 AllocCheck
 
 ## Build (Phase 4)
-- Milestones : 0/4
-- Dernière tâche : —
-- Compilation : —
+- Milestones : 1/4
+- Dernière tâche : MVP Flutter + backend Edge Functions
+- Compilation : clean (flutter analyze 0 issues, flutter test PASS)
 
 ## Audit (Phase 5)
 - Cycle : 0
