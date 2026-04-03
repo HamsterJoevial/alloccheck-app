@@ -105,9 +105,11 @@ class _SimulationScreenState extends State<SimulationScreen> {
     final autresRevenus = <AutreRevenu>[];
     for (final entry in _autresRevenusActifs.entries) {
       if (entry.value) {
-        final montant = double.tryParse(
-                _autresRevenusControllers[entry.key]!.text.replaceAll(',', '.')) ??
-            0;
+        // Montant fixe = barème national, sinon saisie utilisateur
+        final montant = entry.key.montantFixe ??
+            (double.tryParse(
+                    _autresRevenusControllers[entry.key]!.text.replaceAll(',', '.')) ??
+                0);
         if (montant > 0) {
           autresRevenus.add(AutreRevenu(type: entry.key, montantMensuel: montant));
         }
@@ -381,26 +383,55 @@ class _SimulationScreenState extends State<SimulationScreen> {
       children: [
         _buildCheckTile(
           '${type.icon}  ${type.label}',
-          type.description,
+          type.montantFixe != null
+              ? '${type.description} — ${type.montantFixe!.toStringAsFixed(2)}\u20AC/mois'
+              : type.description,
           isActive,
           (v) {
             setState(() {
               _autresRevenusActifs[type] = v;
-              if (v && type.montantTypique != null && controller.text.isEmpty) {
-                controller.text = type.montantTypique!.toStringAsFixed(0);
+              // Si montant fixe connu, on pré-remplit automatiquement
+              if (v && type.montantFixe != null) {
+                controller.text = type.montantFixe!.toStringAsFixed(2);
               }
             });
           },
         ),
-        if (isActive) ...[
+        // Champ montant UNIQUEMENT si saisie requise (montant variable)
+        if (isActive && type.saisieRequise) ...[
           Padding(
             padding: const EdgeInsets.only(left: 48, right: 16, bottom: 12),
             child: _buildMoneyField(
               'Montant mensuel',
               controller,
-              hint: type.montantTypique != null
-                  ? 'Moyenne : ${type.montantTypique!.toStringAsFixed(0)}\u20AC'
-                  : null,
+            ),
+          ),
+        ],
+        // Si montant fixe, afficher un badge de confirmation
+        if (isActive && !type.saisieRequise) ...[
+          Padding(
+            padding: const EdgeInsets.only(left: 48, right: 16, bottom: 12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppTheme.secondary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppTheme.secondary.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: AppTheme.secondary, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${type.montantFixe!.toStringAsFixed(2)}\u20AC/mois — barème national',
+                    style: TextStyle(
+                      color: AppTheme.secondary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

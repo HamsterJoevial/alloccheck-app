@@ -112,79 +112,141 @@ class AutreRevenu {
 enum TypeAutreRevenu {
   chomage(
     label: 'Allocation chômage (ARE)',
-    description: 'Indemnité Pôle Emploi / France Travail',
+    description: 'Indemnité France Travail — montant sur votre notification',
     icon: '🏢',
-    montantTypique: 1028, // moyenne ARE 2026
+    montantFixe: null, // variable selon salaire précédent
+    saisieRequise: true,
   ),
   ass(
     label: 'ASS (Allocation de Solidarité Spécifique)',
-    description: 'Après épuisement des droits chômage',
+    description: '18,43\u20AC/jour — montant fixe national',
     icon: '📋',
-    montantTypique: 552, // 18.43€/jour × 30
+    montantFixe: 552.90, // 18.43 × 30 jours
+    saisieRequise: false, // MONTANT FIXE — pas de saisie
   ),
   pensionRetraite(
     label: 'Pension de retraite',
     description: 'Retraite de base + complémentaire',
     icon: '👴',
-    montantTypique: null,
+    montantFixe: null,
+    saisieRequise: true,
   ),
   pensionInvalidite(
     label: 'Pension d\'invalidité',
-    description: 'Catégorie 1, 2 ou 3',
+    description: 'Montant sur votre notification CPAM',
     icon: '🏥',
-    montantTypique: null,
+    montantFixe: null,
+    saisieRequise: true,
   ),
   pensionAlimentaire(
     label: 'Pension alimentaire reçue',
-    description: 'Versée par l\'ex-conjoint',
+    description: 'Montant fixé par le juge ou accord amiable',
     icon: '💰',
-    montantTypique: null,
+    montantFixe: null,
+    saisieRequise: true,
   ),
   renteAccident(
     label: 'Rente accident du travail / maladie pro',
-    description: 'Versée par la CPAM',
+    description: 'Montant sur votre notification CPAM',
     icon: '⚕️',
-    montantTypique: null,
+    montantFixe: null,
+    saisieRequise: true,
   ),
   revenusFonciers(
     label: 'Revenus fonciers (loyers perçus)',
-    description: 'Revenus locatifs nets',
+    description: 'Revenus locatifs nets mensuels',
     icon: '🏠',
-    montantTypique: null,
+    montantFixe: null,
+    saisieRequise: true,
   ),
   revenusCapitaux(
     label: 'Revenus de capitaux (intérêts, dividendes)',
-    description: 'Placements, livrets, actions',
+    description: 'Placements, livrets, actions — montant mensuel moyen',
     icon: '📈',
-    montantTypique: null,
+    montantFixe: null,
+    saisieRequise: true,
   ),
-  bourseEtudiante(
-    label: 'Bourse étudiante',
-    description: 'Bourse sur critères sociaux (CROUS)',
+  bourseEchelon0(
+    label: 'Bourse CROUS — Échelon 0 bis',
+    description: '1 454\u20AC/an = 121\u20AC/mois — montant fixe national',
     icon: '🎓',
-    montantTypique: null,
+    montantFixe: 121.17, // 1454/12
+    saisieRequise: false,
+  ),
+  bourseEchelon1(
+    label: 'Bourse CROUS — Échelon 1',
+    description: '2 163\u20AC/an = 180\u20AC/mois — montant fixe national',
+    icon: '🎓',
+    montantFixe: 180.25,
+    saisieRequise: false,
+  ),
+  bourseEchelon2(
+    label: 'Bourse CROUS — Échelon 2',
+    description: '3 071\u20AC/an = 256\u20AC/mois — montant fixe national',
+    icon: '🎓',
+    montantFixe: 255.92,
+    saisieRequise: false,
+  ),
+  bourseEchelon3(
+    label: 'Bourse CROUS — Échelon 3',
+    description: '3 931\u20AC/an = 328\u20AC/mois — montant fixe national',
+    icon: '🎓',
+    montantFixe: 327.58,
+    saisieRequise: false,
+  ),
+  bourseEchelon4(
+    label: 'Bourse CROUS — Échelon 4',
+    description: '4 789\u20AC/an = 399\u20AC/mois — montant fixe national',
+    icon: '🎓',
+    montantFixe: 399.08,
+    saisieRequise: false,
+  ),
+  bourseEchelon5(
+    label: 'Bourse CROUS — Échelon 5',
+    description: '5 551\u20AC/an = 463\u20AC/mois — montant fixe national',
+    icon: '🎓',
+    montantFixe: 462.58,
+    saisieRequise: false,
+  ),
+  bourseEchelon6(
+    label: 'Bourse CROUS — Échelon 6',
+    description: '5 880\u20AC/an = 490\u20AC/mois — montant fixe national',
+    icon: '🎓',
+    montantFixe: 490.00,
+    saisieRequise: false,
+  ),
+  bourseEchelon7(
+    label: 'Bourse CROUS — Échelon 7',
+    description: '6 335\u20AC/an = 528\u20AC/mois — montant fixe national',
+    icon: '🎓',
+    montantFixe: 527.92,
+    saisieRequise: false,
   ),
   indemnitesJournalieres(
     label: 'Indemnités journalières maladie',
-    description: 'Arrêt maladie (CPAM)',
+    description: 'Montant sur votre décompte CPAM',
     icon: '🤒',
-    montantTypique: null,
+    montantFixe: null,
+    saisieRequise: true,
   ),
   autreRevenu(
-    label: 'Autre revenu',
-    description: 'Tout autre revenu régulier non listé',
+    label: 'Autre revenu régulier',
+    description: 'Tout autre revenu non listé ci-dessus',
     icon: '📝',
-    montantTypique: null,
+    montantFixe: null,
+    saisieRequise: true,
   );
 
   final String label;
   final String description;
   final String icon;
-  final double? montantTypique;
+  final double? montantFixe; // null = montant variable, l'user doit saisir
+  final bool saisieRequise; // false = montant fixe connu, on coche et c'est tout
   const TypeAutreRevenu({
     required this.label,
     required this.description,
     required this.icon,
-    this.montantTypique,
+    this.montantFixe,
+    required this.saisieRequise,
   });
 }
