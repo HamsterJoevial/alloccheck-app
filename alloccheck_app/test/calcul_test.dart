@@ -7,7 +7,7 @@ void main() {
 
   group('Barèmes avril 2026 — Décrets 2026-220 à 229', () {
 
-    test('AAH 80%+ sans revenus = 1041.59€ (montant max)', () {
+    test('AAH 80%+ sans revenus = 1041.59€, RSA = 0 (non cumulable)', () {
       final result = service.calculerDroits(Situation(
         situationFamiliale: SituationFamiliale.seul,
         nombreEnfants: 0,
@@ -19,7 +19,10 @@ void main() {
       ));
 
       expect(result.droits.aah, 1041.59);
-      expect(result.droits.details['aah'], contains('1041.59'));
+      // RSA = 0 car AAH (1041.59) > forfaitaire RSA (651.69)
+      expect(result.droits.rsa, 0);
+      expect(result.droits.details['rsa'], contains('non cumulable'));
+      expect(result.droits.details['rsa'], contains('R262-11'));
       expect(result.droits.details['aah'], contains('Déconjugalisée'));
     });
 
@@ -39,7 +42,7 @@ void main() {
       expect(result.droits.aah, 1041.59);
     });
 
-    test('RSA seul hébergé sans revenus = 651.69 - 77.58 = 574.11€', () {
+    test('RSA seul hébergé sans revenus SANS AAH = 651.69 - 77.58 = 574.11€', () {
       final result = service.calculerDroits(Situation(
         situationFamiliale: SituationFamiliale.seul,
         nombreEnfants: 0,
@@ -47,9 +50,11 @@ void main() {
         zoneLogement: ZoneLogement.zone3,
         loyerMensuel: 0,
         statutLogement: StatutLogement.heberge,
+        // PAS de handicap = pas d'AAH = RSA plein
       ));
 
       expect(result.droits.rsa, 574.11);
+      expect(result.droits.aah, 0);
     });
 
     test('RSA couple sans enfants sans revenus hébergés', () {

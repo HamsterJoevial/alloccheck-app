@@ -87,11 +87,24 @@ class CalculLocalService {
   // ============================================================
 
   CalculResponse calculerDroits(Situation situation) {
-    final rsa = _calculerRSA(situation);
-    final apl = _calculerAPL(situation);
-    final prime = _calculerPrimeActivite(situation);
-    final af = _calculerAF(situation);
+    // ORDRE DE CALCUL IMPORTANT — les aides interagissent entre elles :
+    // 1. AAH d'abord (indépendant)
+    // 2. RSA ensuite (AAH comptée comme ressource — art. R262-11 CASF)
+    // 3. APL (indépendant, mais déduite du RSA via forfait logement)
+    // 4. Prime d'activité (AAH NON comptée comme ressource — art. R844-5 CSS)
+    // 5. AF (indépendant)
+
     final aah = _calculerAAH(situation);
+    final apl = _calculerAPL(situation);
+    final af = _calculerAF(situation);
+
+    // RSA : l'AAH est une ressource (art. R262-11 CASF)
+    // L'APL déclenche aussi le forfait logement en déduction
+    final rsa = _calculerRSA(situation, aahMensuel: aah.$1, percoitApl: apl.$1 > 0);
+
+    // Prime d'activité : l'AAH n'est PAS une ressource (art. R844-5 CSS)
+    // mais les revenus d'activité doivent être > 0
+    final prime = _calculerPrimeActivite(situation);
 
     final droits = DroitsResult(
       rsa: rsa.$1,
@@ -127,7 +140,7 @@ class CalculLocalService {
   // RSA — Art. L262-2 CASF
   // ============================================================
 
-  (double, String) _calculerRSA(Situation s) {
+  (double, String) _calculerRSA(Situation s, {double aahMensuel = 0, bool percoitApl = false}) {
     final nbPersonnes = (s.situationFamiliale == SituationFamiliale.couple ? 2 : 1) + s.nombreEnfants;
 
     // Montant forfaitaire
@@ -147,9 +160,9 @@ class CalculLocalService {
       }
     }
 
-    // Forfait logement (déduit si hébergé gratuitement ou perçoit APL/ALS/ALF)
+    // Forfait logement (déduit si hébergé, OU si perçoit APL/ALS/ALF — art. R262-9 CASF)
     var forfaitLogement = 0.0;
-    if (s.statutLogement == StatutLogement.heberge || s.loyerMensuel == 0) {
+    if (s.statutLogement == StatutLogement.heberge || s.loyerMensuel == 0 || percoitApl) {
       if (nbPersonnes == 1) {
         forfaitLogement = _rsaForfaitLogement1;
       } else if (nbPersonnes == 2) {
@@ -159,21 +172,33 @@ class CalculLocalService {
       }
     }
 
-    // Ressources du foyer (revenus d'activité + autres)
-    final ressources = s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus;
+    // Ressources du foyer :
+    // - Revenus d'activité + autres revenus
+    // - AAH comptée comme ressource (art. R262-11 CASF) → NON-CUMUL RSA + AAH
+    final ressourcesActivite = s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus;
+    final ressources = ressourcesActivite + aahMensuel;
 
     // RSA = forfaitaire - ressources - forfait logement
     final rsa = (forfaitaire - ressources - forfaitLogement).clamp(0.0, double.infinity);
     final montant = _arrondi(rsa);
 
-    final detail = montant > 0
-        ? 'RSA estimé : $montant\u20AC/mois. '
-            'Forfaitaire : ${forfaitaire.toStringAsFixed(2)}\u20AC, '
-            'ressources : ${ressources.toStringAsFixed(2)}\u20AC. '
-            '[${sourcesLegales['rsa']}]'
-        : 'RSA : vos ressources (${ressources.toStringAsFixed(2)}\u20AC) '
-            'dépassent le forfaitaire (${forfaitaire.toStringAsFixed(2)}\u20AC). '
-            '[${sourcesLegales['rsa']}]';
+    String detail;
+    if (aahMensuel > 0 && montant == 0) {
+      detail = 'RSA : non cumulable avec l\'AAH pleine (${aahMensuel.toStringAsFixed(2)}\u20AC). '
+          'L\'AAH est comptée comme ressource (art. R262-11 CASF). '
+          'Forfaitaire : ${forfaitaire.toStringAsFixed(2)}\u20AC. '
+          '[${sourcesLegales['rsa']}]';
+    } else if (montant > 0) {
+      detail = 'RSA estimé : $montant\u20AC/mois. '
+          'Forfaitaire : ${forfaitaire.toStringAsFixed(2)}\u20AC, '
+          'ressources : ${ressources.toStringAsFixed(2)}\u20AC'
+          '${aahMensuel > 0 ? ' (dont AAH ${aahMensuel.toStringAsFixed(2)}\u20AC)' : ''}. '
+          '[${sourcesLegales['rsa']}]';
+    } else {
+      detail = 'RSA : vos ressources (${ressources.toStringAsFixed(2)}\u20AC) '
+          'dépassent le forfaitaire (${forfaitaire.toStringAsFixed(2)}\u20AC). '
+          '[${sourcesLegales['rsa']}]';
+    }
 
     return (montant, detail);
   }
