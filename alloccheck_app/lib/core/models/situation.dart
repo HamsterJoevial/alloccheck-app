@@ -131,9 +131,23 @@ enum TypeAutreRevenu {
     montantFixe: null,
     saisieRequise: true,
   ),
-  pensionInvalidite(
-    label: 'Pension d\'invalidité',
-    description: 'Montant sur votre notification CPAM',
+  pensionInvaliditeCat1(
+    label: 'Pension d\'invalidité — Catégorie 1',
+    description: '30% du salaire moyen des 10 meilleures années — max 1 099,80\u20AC/mois',
+    icon: '🏥',
+    montantFixe: null,
+    saisieRequise: true, // variable selon salaire, mais cadré par le max
+  ),
+  pensionInvaliditeCat2(
+    label: 'Pension d\'invalidité — Catégorie 2',
+    description: '50% du salaire moyen des 10 meilleures années — max 1 833,00\u20AC/mois',
+    icon: '🏥',
+    montantFixe: null,
+    saisieRequise: true,
+  ),
+  pensionInvaliditeCat3(
+    label: 'Pension d\'invalidité — Catégorie 3',
+    description: 'Cat. 2 + majoration tierce personne — max 3 064,54\u20AC/mois',
     icon: '🏥',
     montantFixe: null,
     saisieRequise: true,

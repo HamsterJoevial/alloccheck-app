@@ -369,10 +369,48 @@ class _SimulationScreenState extends State<SimulationScreen> {
           _buildSectionTitle('Autres revenus (cochez ceux qui s\'appliquent) :'),
           const SizedBox(height: 8),
 
-          ...TypeAutreRevenu.values.map((type) => _buildAutreRevenuTile(type)),
+          // Info : les aides calculées automatiquement ne sont pas ici
+          if (_aHandicap) ...[
+            _buildInfoBox(
+              'L\'AAH est calculée automatiquement à partir de votre taux '
+              'de handicap et vos ressources. Ne la ressaisissez pas ici.',
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          ..._filteredAutresRevenus().map((type) => _buildAutreRevenuTile(type)),
         ],
       ),
     );
+  }
+
+  /// Filtre les autres revenus selon le contexte déjà saisi
+  List<TypeAutreRevenu> _filteredAutresRevenus() {
+    return TypeAutreRevenu.values.where((type) {
+      // Pension d'invalidité : nécessite un historique d'emploi
+      // Ne pas montrer si aucun revenu d'activité sélectionné
+      if ((type == TypeAutreRevenu.pensionInvaliditeCat1 ||
+              type == TypeAutreRevenu.pensionInvaliditeCat2 ||
+              type == TypeAutreRevenu.pensionInvaliditeCat3) &&
+          _sourceRevenuDemandeur == SourceRevenuActivite.aucun) {
+        return false;
+      }
+
+      // Bourse étudiante : ne montrer qu'un seul échelon à la fois
+      // On les montre tous et l'user coche celui qui correspond
+      // Mais on les masque si la personne est en couple avec enfants (peu probable étudiant)
+
+      // ASS : ne pas montrer si la personne a un emploi (ARE et ASS sont exclusifs)
+      if (type == TypeAutreRevenu.ass &&
+          _sourceRevenuDemandeur != SourceRevenuActivite.aucun) {
+        return false;
+      }
+
+      // Pension retraite : ne pas montrer si < 60 ans implicitement
+      // (on n'a pas l'âge, donc on montre toujours)
+
+      return true;
+    }).toList();
   }
 
   Widget _buildAutreRevenuTile(TypeAutreRevenu type) {
