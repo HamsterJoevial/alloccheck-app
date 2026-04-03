@@ -119,7 +119,7 @@ class CalculLocalService {
       }
     }
 
-    final ressources = s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.autresRevenus;
+    final ressources = s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus;
     final rsa = (forfaitaire - ressources - forfaitLogement).clamp(0, double.infinity);
     final montant = (rsa * 100).round() / 100;
 
@@ -158,7 +158,7 @@ class CalculLocalService {
       charge = 112.44 + 31.50 * (nbPersonnes - 2).clamp(0, double.infinity);
     }
 
-    final ressourcesMensuelles = s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.autresRevenus;
+    final ressourcesMensuelles = s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus;
     final ressourcesAnnuelles = ressourcesMensuelles * 12;
 
     final tauxParticipation = (0.005 + ressourcesAnnuelles / 100000).clamp(0, 0.95);
@@ -206,7 +206,7 @@ class CalculLocalService {
       }
     }
 
-    final ressources = s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.autresRevenus;
+    final ressources = s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus;
     final prime = forfaitaire + 0.61 * revenusActivite + bonification - ressources - ressources * _primeTauxRevenus;
     final montant = prime.clamp(0, double.infinity);
     final montantFinal = (montant * 100).round() / 100;
@@ -228,7 +228,7 @@ class CalculLocalService {
       return (0, 'Allocations familiales : minimum 2 enfants à charge requis.');
     }
 
-    final ressourcesAnnuelles = (s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.autresRevenus) * 12;
+    final ressourcesAnnuelles = (s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus) * 12;
 
     var montant = 0.0;
     if (s.nombreEnfants == 2) {
@@ -276,7 +276,7 @@ class CalculLocalService {
       return (0, 'AAH : taux d\'incapacité < 50%, non éligible.');
     }
 
-    final ressourcesAnnuelles = (s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.autresRevenus) * 12;
+    final ressourcesAnnuelles = (s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus) * 12;
     var plafond = s.situationFamiliale == SituationFamiliale.couple ? _aahPlafondCouple : _aahPlafondSeul;
     plafond += s.nombreEnfants * _aahMajorationEnfant;
 

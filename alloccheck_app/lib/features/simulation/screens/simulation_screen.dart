@@ -4,6 +4,8 @@ import '../../../core/models/situation.dart';
 import '../../../core/theme/app_theme.dart';
 
 /// Écran principal de simulation — formulaire multi-étapes
+/// Principe : maximum de choix à cocher, minimum de saisie libre.
+/// On ne demande que ce que l'État ne peut pas connaître.
 class SimulationScreen extends StatefulWidget {
   const SimulationScreen({super.key});
 
@@ -23,34 +25,56 @@ class _SimulationScreenState extends State<SimulationScreen> {
   final List<int> _agesEnfants = [];
 
   // Step 2 — Revenus
+  SourceRevenuActivite _sourceRevenuDemandeur = SourceRevenuActivite.aucun;
   final _revenuDemandeurController = TextEditingController();
+  SourceRevenuActivite _sourceRevenuConjoint = SourceRevenuActivite.aucun;
   final _revenuConjointController = TextEditingController();
-  final _autresRevenusController = TextEditingController();
+
+  // Autres revenus — checklist
+  final Map<TypeAutreRevenu, bool> _autresRevenusActifs = {
+    for (final type in TypeAutreRevenu.values) type: false,
+  };
+  final Map<TypeAutreRevenu, TextEditingController> _autresRevenusControllers = {
+    for (final type in TypeAutreRevenu.values) type: TextEditingController(),
+  };
 
   // Step 3 — Logement
   ZoneLogement _zoneLogement = ZoneLogement.zone2;
   StatutLogement _statutLogement = StatutLogement.locataire;
   final _loyerController = TextEditingController();
 
+  // Handicap
+  bool _aHandicap = false;
+  int _tauxHandicap = 80;
+
   // Step 4 — Montants perçus (comparaison)
-  final _percuRsaController = TextEditingController();
-  final _percuAplController = TextEditingController();
-  final _percuPrimeController = TextEditingController();
-  final _percuAfController = TextEditingController();
-  final _percuAahController = TextEditingController();
+  final Map<String, bool> _percuActifs = {
+    'rsa': false,
+    'apl': false,
+    'prime_activite': false,
+    'af': false,
+    'aah': false,
+  };
+  final Map<String, TextEditingController> _percuControllers = {
+    'rsa': TextEditingController(),
+    'apl': TextEditingController(),
+    'prime_activite': TextEditingController(),
+    'af': TextEditingController(),
+    'aah': TextEditingController(),
+  };
 
   @override
   void dispose() {
     _pageController.dispose();
     _revenuDemandeurController.dispose();
     _revenuConjointController.dispose();
-    _autresRevenusController.dispose();
     _loyerController.dispose();
-    _percuRsaController.dispose();
-    _percuAplController.dispose();
-    _percuPrimeController.dispose();
-    _percuAfController.dispose();
-    _percuAahController.dispose();
+    for (final c in _autresRevenusControllers.values) {
+      c.dispose();
+    }
+    for (final c in _percuControllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -77,32 +101,49 @@ class _SimulationScreenState extends State<SimulationScreen> {
   }
 
   void _submitSimulation() {
+    // Construire la liste des autres revenus cochés
+    final autresRevenus = <AutreRevenu>[];
+    for (final entry in _autresRevenusActifs.entries) {
+      if (entry.value) {
+        final montant = double.tryParse(
+                _autresRevenusControllers[entry.key]!.text.replaceAll(',', '.')) ??
+            0;
+        if (montant > 0) {
+          autresRevenus.add(AutreRevenu(type: entry.key, montantMensuel: montant));
+        }
+      }
+    }
+
+    // Construire les montants perçus
+    final montantPercu = <String, double>{};
+    for (final entry in _percuActifs.entries) {
+      if (entry.value) {
+        final montant = double.tryParse(
+                _percuControllers[entry.key]!.text.replaceAll(',', '.')) ??
+            0;
+        montantPercu[entry.key] = montant;
+      }
+    }
+
     final situation = Situation(
       situationFamiliale: _situationFamiliale,
       nombreEnfants: _nombreEnfants,
       agesEnfants: _agesEnfants,
       parentIsole: _parentIsole,
-      revenuActiviteDemandeur: double.tryParse(_revenuDemandeurController.text) ?? 0,
-      revenuActiviteConjoint: double.tryParse(_revenuConjointController.text) ?? 0,
-      autresRevenus: double.tryParse(_autresRevenusController.text) ?? 0,
+      sourceRevenuDemandeur: _sourceRevenuDemandeur,
+      revenuActiviteDemandeur:
+          double.tryParse(_revenuDemandeurController.text.replaceAll(',', '.')) ?? 0,
+      sourceRevenuConjoint: _sourceRevenuConjoint,
+      revenuActiviteConjoint:
+          double.tryParse(_revenuConjointController.text.replaceAll(',', '.')) ?? 0,
+      autresRevenus: autresRevenus,
       zoneLogement: _zoneLogement,
-      loyerMensuel: double.tryParse(_loyerController.text) ?? 0,
+      loyerMensuel: double.tryParse(_loyerController.text.replaceAll(',', '.')) ?? 0,
       statutLogement: _statutLogement,
-      montantPercu: {
-        if (_percuRsaController.text.isNotEmpty)
-          'rsa': double.tryParse(_percuRsaController.text) ?? 0,
-        if (_percuAplController.text.isNotEmpty)
-          'apl': double.tryParse(_percuAplController.text) ?? 0,
-        if (_percuPrimeController.text.isNotEmpty)
-          'prime_activite': double.tryParse(_percuPrimeController.text) ?? 0,
-        if (_percuAfController.text.isNotEmpty)
-          'af': double.tryParse(_percuAfController.text) ?? 0,
-        if (_percuAahController.text.isNotEmpty)
-          'aah': double.tryParse(_percuAahController.text) ?? 0,
-      },
+      tauxHandicap: _aHandicap ? _tauxHandicap : null,
+      montantPercu: montantPercu,
     );
 
-    // Naviguer vers l'écran de résultats avec la situation
     Navigator.of(context).pushNamed('/results', arguments: situation);
   }
 
@@ -120,9 +161,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
       ),
       body: Column(
         children: [
-          // Progress indicator
           _buildProgressBar(),
-          // Form pages
           Expanded(
             child: PageView(
               controller: _pageController,
@@ -135,7 +174,6 @@ class _SimulationScreenState extends State<SimulationScreen> {
               ],
             ),
           ),
-          // Bottom button
           _buildBottomButton(),
         ],
       ),
@@ -150,14 +188,10 @@ class _SimulationScreenState extends State<SimulationScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Étape ${_currentStep + 1}/$_totalSteps',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              Text(
-                _stepLabel(_currentStep),
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
+              Text('Étape ${_currentStep + 1}/$_totalSteps',
+                  style: Theme.of(context).textTheme.bodyMedium),
+              Text(_stepLabel(_currentStep),
+                  style: Theme.of(context).textTheme.labelLarge),
             ],
           ),
           const SizedBox(height: 8),
@@ -182,78 +216,105 @@ class _SimulationScreenState extends State<SimulationScreen> {
     }
   }
 
+  // ============================================================
+  // STEP 1 — FAMILLE
+  // ============================================================
+
   Widget _buildStep1Famille() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Votre situation familiale',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
+          Text('Votre situation familiale',
+              style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 24),
 
           // Situation
-          Text('Vous êtes :', style: Theme.of(context).textTheme.titleMedium),
+          _buildSectionTitle('Vous êtes :'),
           const SizedBox(height: 8),
-          _buildChoiceChips(
-            ['Seul(e)', 'En couple'],
-            _situationFamiliale == SituationFamiliale.seul ? 0 : 1,
-            (index) {
-              setState(() {
-                _situationFamiliale = index == 0
-                    ? SituationFamiliale.seul
-                    : SituationFamiliale.couple;
-              });
-            },
+          _buildRadioList<SituationFamiliale>(
+            items: SituationFamiliale.values,
+            value: _situationFamiliale,
+            labelBuilder: (v) => v == SituationFamiliale.seul ? 'Seul(e)' : 'En couple',
+            onChanged: (v) => setState(() => _situationFamiliale = v),
           ),
           const SizedBox(height: 24),
 
           // Enfants
-          Text('Nombre d\'enfants à charge :', style: Theme.of(context).textTheme.titleMedium),
+          _buildSectionTitle('Enfants à charge :'),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              IconButton(
-                onPressed: _nombreEnfants > 0
-                    ? () => setState(() {
-                          _nombreEnfants--;
-                          if (_agesEnfants.length > _nombreEnfants) {
-                            _agesEnfants.removeLast();
-                          }
-                        })
-                    : null,
-                icon: const Icon(Icons.remove_circle_outline),
-              ),
-              Text(
-                '$_nombreEnfants',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              IconButton(
-                onPressed: () => setState(() {
-                  _nombreEnfants++;
-                  _agesEnfants.add(0);
-                }),
-                icon: const Icon(Icons.add_circle_outline),
-              ),
-            ],
+          _buildCounter(
+            value: _nombreEnfants,
+            onChanged: (v) {
+              setState(() {
+                _nombreEnfants = v;
+                while (_agesEnfants.length < v) { _agesEnfants.add(5); }
+                while (_agesEnfants.length > v) { _agesEnfants.removeLast(); }
+              });
+            },
           ),
+
+          // Âge des enfants (pour majoration AF 14+)
+          if (_nombreEnfants > 0) ...[
+            const SizedBox(height: 16),
+            _buildSectionTitle('Âge de chaque enfant :'),
+            const SizedBox(height: 8),
+            ...List.generate(_nombreEnfants, (i) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Text('Enfant ${i + 1} :', style: Theme.of(context).textTheme.bodyLarge),
+                  const SizedBox(width: 12),
+                  _buildAgeSelector(
+                    value: _agesEnfants[i],
+                    onChanged: (v) => setState(() => _agesEnfants[i] = v),
+                  ),
+                ],
+              ),
+            )),
+          ],
 
           // Parent isolé
           if (_situationFamiliale == SituationFamiliale.seul && _nombreEnfants > 0) ...[
             const SizedBox(height: 16),
-            SwitchListTile(
-              title: const Text('Parent isolé'),
-              subtitle: const Text('Majoration si vous élevez seul(e) vos enfants'),
-              value: _parentIsole,
-              onChanged: (v) => setState(() => _parentIsole = v),
+            _buildCheckTile(
+              'Parent isolé',
+              'Vous élevez seul(e) vos enfants (majoration RSA)',
+              _parentIsole,
+              (v) => setState(() => _parentIsole = v),
+            ),
+          ],
+
+          // Handicap
+          const SizedBox(height: 24),
+          _buildCheckTile(
+            'Situation de handicap',
+            'Taux d\'incapacité reconnu par la MDPH',
+            _aHandicap,
+            (v) => setState(() => _aHandicap = v),
+          ),
+          if (_aHandicap) ...[
+            const SizedBox(height: 12),
+            _buildSectionTitle('Taux d\'incapacité :'),
+            const SizedBox(height: 8),
+            _buildRadioList<int>(
+              items: const [50, 80],
+              value: _tauxHandicap >= 80 ? 80 : 50,
+              labelBuilder: (v) => v == 50
+                  ? 'Entre 50% et 79% (AAH sous conditions)'
+                  : '80% ou plus (AAH pleine)',
+              onChanged: (v) => setState(() => _tauxHandicap = v),
             ),
           ],
         ],
       ),
     );
   }
+
+  // ============================================================
+  // STEP 2 — REVENUS (checklist)
+  // ============================================================
 
   Widget _buildStep2Revenus() {
     return SingleChildScrollView(
@@ -261,43 +322,95 @@ class _SimulationScreenState extends State<SimulationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Vos revenus mensuels nets',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Indiquez vos revenus nets mensuels (après impôts)',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          Text('Vos revenus mensuels',
+              style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 4),
+          Text('Montants nets, après impôts',
+              style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 24),
 
-          _buildMoneyField(
-            'Vos revenus d\'activité',
-            _revenuDemandeurController,
-            hint: 'Ex: 1200',
+          // Revenu d'activité demandeur
+          _buildSectionTitle('Votre source de revenus principale :'),
+          const SizedBox(height: 8),
+          _buildRadioList<SourceRevenuActivite>(
+            items: SourceRevenuActivite.values,
+            value: _sourceRevenuDemandeur,
+            labelBuilder: (v) => v.label,
+            onChanged: (v) => setState(() => _sourceRevenuDemandeur = v),
           ),
 
-          if (_situationFamiliale == SituationFamiliale.couple) ...[
-            const SizedBox(height: 16),
-            _buildMoneyField(
-              'Revenus d\'activité du conjoint',
-              _revenuConjointController,
-              hint: 'Ex: 900',
-            ),
+          if (_sourceRevenuDemandeur != SourceRevenuActivite.aucun) ...[
+            const SizedBox(height: 12),
+            _buildMoneyField('Montant net mensuel', _revenuDemandeurController),
           ],
 
-          const SizedBox(height: 16),
-          _buildMoneyField(
-            'Autres revenus (pensions, rentes...)',
-            _autresRevenusController,
-            hint: '0',
-            required: false,
-          ),
+          // Revenu conjoint
+          if (_situationFamiliale == SituationFamiliale.couple) ...[
+            const SizedBox(height: 24),
+            _buildSectionTitle('Source de revenus du conjoint :'),
+            const SizedBox(height: 8),
+            _buildRadioList<SourceRevenuActivite>(
+              items: SourceRevenuActivite.values,
+              value: _sourceRevenuConjoint,
+              labelBuilder: (v) => v.label,
+              onChanged: (v) => setState(() => _sourceRevenuConjoint = v),
+            ),
+
+            if (_sourceRevenuConjoint != SourceRevenuActivite.aucun) ...[
+              const SizedBox(height: 12),
+              _buildMoneyField('Montant net mensuel conjoint', _revenuConjointController),
+            ],
+          ],
+
+          // Autres revenus — CHECKLIST
+          const SizedBox(height: 24),
+          _buildSectionTitle('Autres revenus (cochez ceux qui s\'appliquent) :'),
+          const SizedBox(height: 8),
+
+          ...TypeAutreRevenu.values.map((type) => _buildAutreRevenuTile(type)),
         ],
       ),
     );
   }
+
+  Widget _buildAutreRevenuTile(TypeAutreRevenu type) {
+    final isActive = _autresRevenusActifs[type]!;
+    final controller = _autresRevenusControllers[type]!;
+
+    return Column(
+      children: [
+        _buildCheckTile(
+          '${type.icon}  ${type.label}',
+          type.description,
+          isActive,
+          (v) {
+            setState(() {
+              _autresRevenusActifs[type] = v;
+              if (v && type.montantTypique != null && controller.text.isEmpty) {
+                controller.text = type.montantTypique!.toStringAsFixed(0);
+              }
+            });
+          },
+        ),
+        if (isActive) ...[
+          Padding(
+            padding: const EdgeInsets.only(left: 48, right: 16, bottom: 12),
+            child: _buildMoneyField(
+              'Montant mensuel',
+              controller,
+              hint: type.montantTypique != null
+                  ? 'Moyenne : ${type.montantTypique!.toStringAsFixed(0)}\u20AC'
+                  : null,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // ============================================================
+  // STEP 3 — LOGEMENT
+  // ============================================================
 
   Widget _buildStep3Logement() {
     return SingleChildScrollView(
@@ -305,58 +418,59 @@ class _SimulationScreenState extends State<SimulationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Votre logement',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
+          Text('Votre logement',
+              style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 24),
 
-          // Statut logement
-          Text('Vous êtes :', style: Theme.of(context).textTheme.titleMedium),
+          _buildSectionTitle('Vous êtes :'),
           const SizedBox(height: 8),
-          _buildChoiceChips(
-            ['Locataire', 'Propriétaire', 'Hébergé(e)'],
-            _statutLogement.index,
-            (index) {
-              setState(() {
-                _statutLogement = StatutLogement.values[index];
-              });
+          _buildRadioList<StatutLogement>(
+            items: StatutLogement.values,
+            value: _statutLogement,
+            labelBuilder: (v) {
+              switch (v) {
+                case StatutLogement.locataire: return 'Locataire';
+                case StatutLogement.proprietaire: return 'Propriétaire (pas d\'APL)';
+                case StatutLogement.heberge: return 'Hébergé(e) gratuitement';
+              }
             },
+            onChanged: (v) => setState(() => _statutLogement = v),
           ),
-          const SizedBox(height: 24),
 
           if (_statutLogement == StatutLogement.locataire) ...[
-            _buildMoneyField(
-              'Loyer mensuel (hors charges)',
-              _loyerController,
-              hint: 'Ex: 600',
-            ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            _buildMoneyField('Loyer mensuel hors charges', _loyerController),
           ],
 
-          // Zone
-          Text('Zone de votre logement :', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 24),
+          _buildSectionTitle('Zone de votre commune :'),
           const SizedBox(height: 8),
-          _buildChoiceChips(
-            ['Zone 1\n(Paris/IDF)', 'Zone 2\n(Grandes villes)', 'Zone 3\n(Reste FR)'],
-            _zoneLogement.index,
-            (index) {
-              setState(() {
-                _zoneLogement = ZoneLogement.values[index];
-              });
+          _buildRadioList<ZoneLogement>(
+            items: ZoneLogement.values,
+            value: _zoneLogement,
+            labelBuilder: (v) {
+              switch (v) {
+                case ZoneLogement.zone1: return 'Zone 1 — Paris et communes limitrophes';
+                case ZoneLogement.zone2: return 'Zone 2 — Agglomérations > 100 000 hab.';
+                case ZoneLogement.zone3: return 'Zone 3 — Reste de la France';
+              }
             },
+            onChanged: (v) => setState(() => _zoneLogement = v),
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Zone 1 : Paris et communes limitrophes\n'
-            'Zone 2 : Agglomérations > 100 000 hab.\n'
-            'Zone 3 : Reste de la France',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
+
+          const SizedBox(height: 16),
+          _buildInfoBox(
+            'En cas de doute sur votre zone, sélectionnez Zone 3 (la plus courante). '
+            'Vous pouvez vérifier sur Service-Public.fr avec votre code postal.',
           ),
         ],
       ),
     );
   }
+
+  // ============================================================
+  // STEP 4 — CE QUE JE PERÇOIS (checklist)
+  // ============================================================
 
   Widget _buildStep4Percu() {
     return SingleChildScrollView(
@@ -364,124 +478,211 @@ class _SimulationScreenState extends State<SimulationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Ce que vous percevez',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Indiquez ce que la CAF vous verse actuellement (laissez vide si vous ne percevez pas cette aide)',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          Text('Ce que la CAF vous verse',
+              style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 4),
+          Text('Cochez les aides que vous percevez actuellement et indiquez le montant',
+              style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 24),
 
-          _buildPercuField('RSA', _percuRsaController, AppTheme.aideColors['rsa']!),
-          const SizedBox(height: 12),
-          _buildPercuField('APL', _percuAplController, AppTheme.aideColors['apl']!),
-          const SizedBox(height: 12),
-          _buildPercuField('Prime d\'activité', _percuPrimeController, AppTheme.aideColors['prime_activite']!),
-          const SizedBox(height: 12),
-          _buildPercuField('Allocations familiales', _percuAfController, AppTheme.aideColors['af']!),
-          const SizedBox(height: 12),
-          _buildPercuField('AAH', _percuAahController, AppTheme.aideColors['aah']!),
+          ..._percuActifs.entries.map((entry) {
+            final aide = entry.key;
+            final isActive = entry.value;
+            final color = AppTheme.aideColors[aide] ?? AppTheme.primary;
+            final label = AppTheme.aideLabels[aide] ?? aide;
+            final icon = AppTheme.aideIcons[aide] ?? Icons.euro;
+            final controller = _percuControllers[aide]!;
 
-          const SizedBox(height: 24),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppTheme.warning.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppTheme.warning.withValues(alpha: 0.3)),
-            ),
-            child: Row(
+            return Column(
               children: [
-                Icon(Icons.info_outline, color: AppTheme.warning, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Ces montants permettent de comparer avec ce que vous devriez percevoir.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
+                Container(
+                  margin: const EdgeInsets.only(bottom: 4),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isActive ? color.withValues(alpha: 0.5) : AppTheme.border,
+                    ),
+                    color: isActive ? color.withValues(alpha: 0.05) : null,
+                  ),
+                  child: CheckboxListTile(
+                    value: isActive,
+                    onChanged: (v) => setState(() => _percuActifs[aide] = v ?? false),
+                    title: Row(
+                      children: [
+                        Icon(icon, color: color, size: 20),
+                        const SizedBox(width: 8),
+                        Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+                      ],
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    activeColor: color,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
+                if (isActive) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(left: 48, right: 16, bottom: 12),
+                    child: _buildMoneyField('Montant reçu / mois', controller),
+                  ),
+                ],
               ],
-            ),
+            );
+          }),
+
+          const SizedBox(height: 16),
+          _buildInfoBox(
+            'Si vous ne percevez aucune aide, laissez tout décoché. '
+            'AllocCheck vous dira si vous y avez droit.',
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPercuField(String label, TextEditingController controller, Color color) {
+  // ============================================================
+  // COMPOSANTS RÉUTILISABLES
+  // ============================================================
+
+  Widget _buildSectionTitle(String text) {
+    return Text(text, style: Theme.of(context).textTheme.titleMedium);
+  }
+
+  Widget _buildRadioList<T>({
+    required List<T> items,
+    required T value,
+    required String Function(T) labelBuilder,
+    required void Function(T) onChanged,
+  }) {
+    return Column(
+      children: items.map((item) {
+        final isSelected = item == value;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? AppTheme.primary : AppTheme.border,
+            ),
+            color: isSelected ? AppTheme.primary.withValues(alpha: 0.05) : null,
+          ),
+          child: RadioListTile<T>(
+            value: item,
+            groupValue: value,
+            onChanged: (v) {
+              if (v != null) onChanged(v);
+            },
+            title: Text(
+              labelBuilder(item),
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+            activeColor: AppTheme.primary,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildCheckTile(
+    String title,
+    String subtitle,
+    bool value,
+    void Function(bool) onChanged,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: value ? AppTheme.primary : AppTheme.border,
+        ),
+        color: value ? AppTheme.primary.withValues(alpha: 0.05) : null,
+      ),
+      child: CheckboxListTile(
+        value: value,
+        onChanged: (v) => onChanged(v ?? false),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+        controlAffinity: ListTileControlAffinity.leading,
+        activeColor: AppTheme.primary,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _buildCounter({required int value, required void Function(int) onChanged}) {
     return Row(
       children: [
-        Container(
-          width: 4,
-          height: 48,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
+        _buildCounterButton(Icons.remove, value > 0, () => onChanged(value - 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text('$value', style: Theme.of(context).textTheme.headlineMedium),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: TextFormField(
-            controller: controller,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))],
-            decoration: InputDecoration(
-              labelText: label,
-              hintText: '0',
-              suffixText: '€/mois',
-            ),
-          ),
-        ),
+        _buildCounterButton(Icons.add, value < 10, () => onChanged(value + 1)),
       ],
     );
   }
 
-  Widget _buildMoneyField(
-    String label,
-    TextEditingController controller, {
-    String hint = '0',
-    bool required = true,
-  }) {
+  Widget _buildCounterButton(IconData icon, bool enabled, VoidCallback onPressed) {
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: enabled ? AppTheme.primary : AppTheme.border),
+      ),
+      child: IconButton(
+        onPressed: enabled ? onPressed : null,
+        icon: Icon(icon, color: enabled ? AppTheme.primary : AppTheme.textSecondary),
+      ),
+    );
+  }
+
+  Widget _buildAgeSelector({required int value, required void Function(int) onChanged}) {
+    return DropdownButton<int>(
+      value: value.clamp(0, 25),
+      items: List.generate(26, (i) => DropdownMenuItem(
+        value: i,
+        child: Text('$i ans'),
+      )),
+      onChanged: (v) {
+        if (v != null) onChanged(v);
+      },
+    );
+  }
+
+  Widget _buildMoneyField(String label, TextEditingController controller, {String? hint}) {
     return TextFormField(
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))],
       decoration: InputDecoration(
         labelText: label,
-        hintText: hint,
-        suffixText: '€/mois',
+        hintText: hint ?? '0',
+        suffixText: '\u20AC/mois',
       ),
     );
   }
 
-  Widget _buildChoiceChips(
-    List<String> labels,
-    int selectedIndex,
-    void Function(int) onSelected,
-  ) {
-    return Wrap(
-      spacing: 8,
-      children: List.generate(labels.length, (index) {
-        final isSelected = index == selectedIndex;
-        return ChoiceChip(
-          label: Text(
-            labels[index],
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: isSelected ? Colors.white : AppTheme.textPrimary,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-            ),
+  Widget _buildInfoBox(String text) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.primary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, size: 16, color: AppTheme.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12)),
           ),
-          selected: isSelected,
-          selectedColor: AppTheme.primary,
-          backgroundColor: AppTheme.surface,
-          side: BorderSide(color: isSelected ? AppTheme.primary : AppTheme.border),
-          onSelected: (_) => onSelected(index),
-        );
-      }),
+        ],
+      ),
     );
   }
 
