@@ -5,6 +5,11 @@ class DroitsResult {
   final double primeActivite;
   final double af;
   final double aah;
+  final double cmg;
+  final double paje;
+  final double cf;
+  final double prepare;
+  final double ars;
   final double total;
   final Map<String, String> details;
 
@@ -14,6 +19,11 @@ class DroitsResult {
     required this.primeActivite,
     required this.af,
     required this.aah,
+    this.cmg = 0,
+    this.paje = 0,
+    this.cf = 0,
+    this.prepare = 0,
+    this.ars = 0,
     required this.total,
     required this.details,
   });
@@ -25,6 +35,7 @@ class DroitsResult {
       primeActivite: (json['prime_activite'] as num?)?.toDouble() ?? 0,
       af: (json['af'] as num?)?.toDouble() ?? 0,
       aah: (json['aah'] as num?)?.toDouble() ?? 0,
+      ars: (json['ars'] as num?)?.toDouble() ?? 0,
       total: (json['total'] as num?)?.toDouble() ?? 0,
       details: (json['details'] as Map<String, dynamic>?)
               ?.map((k, v) => MapEntry(k, v.toString())) ??
@@ -62,16 +73,31 @@ class EcartResult {
   bool get hasAidesNonReclamees => aidesNonReclamees.isNotEmpty;
 }
 
+/// Aide méconnue suggérée selon le profil
+class AideSuggestion {
+  final String titre;
+  final String description;
+  final String source; // organisme à contacter
+
+  const AideSuggestion({
+    required this.titre,
+    required this.description,
+    required this.source,
+  });
+}
+
 /// Réponse complète du calcul
 class CalculResponse {
   final DroitsResult droits;
   final EcartResult? ecart;
   final String disclaimer;
+  final List<AideSuggestion> suggestions;
 
   const CalculResponse({
     required this.droits,
     this.ecart,
     required this.disclaimer,
+    this.suggestions = const [],
   });
 
   factory CalculResponse.fromJson(Map<String, dynamic> json) {

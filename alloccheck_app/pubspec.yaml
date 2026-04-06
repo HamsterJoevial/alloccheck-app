@@ -10,12 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  # State management
-  flutter_riverpod: ^2.6.1
-  riverpod_annotation: ^2.6.1
-  # Navigation
-  go_router: ^14.8.1
-  # Supabase
+  # Supabase (branché plus tard — projet lakxgpzweyevwdfhatvy)
   supabase_flutter: ^2.9.0
   # HTTP
   http: ^1.4.0
@@ -36,10 +31,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  riverpod_generator: ^2.6.3
-  build_runner: ^2.4.15
-  custom_lint: ^0.7.5
-  riverpod_lint: ^2.6.3
 
 flutter:
   uses-material-design: true

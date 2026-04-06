@@ -20,9 +20,9 @@ class AppConstants {
   static const String generateLetterFunction = 'generate-letter';
   static const String generatePdfFunction = 'generate-pdf';
 
-  // Pricing
-  static const double reportPrice = 4.99;
-  static const double letterPrice = 4.99;
+  // Pricing — tout inclus dans le déblocage unique 2,99€
+  static const double reportPrice = 0;
+  static const double letterPrice = 0;
   static const double subscriptionPrice = 3.99;
 
   // Disclaimers

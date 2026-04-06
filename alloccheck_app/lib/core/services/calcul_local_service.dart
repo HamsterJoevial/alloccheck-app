@@ -74,12 +74,47 @@ class CalculLocalService {
   // SOURCES LÉGALES (intégrées dans les détails pour les courriers)
   // ============================================================
 
+  // --- CMG (Complément Mode de Garde — CAF.fr, barèmes 2026) ---
+  // Tranches de revenus annuels du foyer
+  static const double _cmgSeuil1 = 27017.0;
+  static const double _cmgSeuil2 = 47648.0;
+  // Montants par mode de garde et par tranche
+  static const Map<String, List<double>> _cmgMontants = {
+    'assistante_maternelle': [923.0, 461.0, 230.50],
+    'creche':                [923.0, 461.0, 230.50],
+    'garde_domicile':        [1846.0, 923.0, 461.0],
+  };
+
+  // --- PAJE base (CAF.fr, barèmes 2026) ---
+  static const double _pajeTauxPlein = 185.54;
+  static const double _pajeTauxPartiel = 92.77;
+  // Plafonds annuels couple (1 enfant → +, index = nombreEnfants-1 capped)
+  static const List<double> _pajePlafondCouple = [43681, 52958, 62234];
+  static const double _pajePlafondCoupleParEnfantSupp = 9277;
+  // Plafonds annuels isolé
+  static const List<double> _pajePlafondIsole = [34681, 43957, 53234];
+  static const double _pajePlafondIsoleParEnfantSupp = 9277;
+
+  // --- Complément Familial (CAF.fr, barèmes 2026) ---
+  static const double _cfMontantMajore = 260.57;  // revenus ≤ 25 000€/an
+  static const double _cfMontantNormal = 173.71;  // revenus ≤ 43 000€/an
+  static const double _cfSeuilMajore = 25000.0;
+  static const double _cfSeuilNormal = 43000.0;
+
+  // --- PreParE (CAF.fr, barèmes 2026) ---
+  static const double _prepareTauxPlein = 396.01;
+  static const double _prepareTauxDemi = 256.01;
+
   static const Map<String, String> sourcesLegales = {
     'rsa': 'Art. L262-2 CASF — Décret n° 2026-220 du 30/03/2026',
     'apl': 'Art. L841-1 CCH — Barèmes 01/10/2025 maintenus 2026',
     'prime_activite': 'Art. L841-3, L844-1 CSS — Décret n° 2026-222 du 30/03/2026',
     'af': 'Art. L512-1 CSS — Instruction DSS/2B/2026/46 du 20/03/2026 — BMAF 478,16€',
     'aah': 'Art. L821-1 CSS — Décret n° 2026-229 du 30/03/2026 — Déconjugalisation oct. 2023',
+    'cmg': 'Art. L531-5 CSS — CAF.fr barèmes 2026',
+    'paje': 'Art. L531-2 CSS — CAF.fr barèmes 2026',
+    'cf': 'Art. L522-1 CSS — CAF.fr barèmes 2026',
+    'prepare': 'Art. L531-4 CSS — CAF.fr barèmes 2026',
   };
 
   // ============================================================
@@ -99,12 +134,16 @@ class CalculLocalService {
     final af = _calculerAF(situation);
 
     // RSA : l'AAH est une ressource (art. R262-11 CASF)
-    // L'APL déclenche aussi le forfait logement en déduction
     final rsa = _calculerRSA(situation, aahMensuel: aah.$1, percoitApl: apl.$1 > 0);
 
-    // Prime d'activité : l'AAH n'est PAS une ressource (art. R844-5 CSS)
-    // mais les revenus d'activité doivent être > 0
     final prime = _calculerPrimeActivite(situation);
+
+    // Aides famille (portées depuis BudgetBébé)
+    final cmg = _calculerCMG(situation);
+    final paje = _calculerPAJE(situation);
+    final cf = _calculerCF(situation);
+    final prepare = _calculerPreParE(situation);
+    final ars = _calculerARS(situation);
 
     final droits = DroitsResult(
       rsa: rsa.$1,
@@ -112,13 +151,23 @@ class CalculLocalService {
       primeActivite: prime.$1,
       af: af.$1,
       aah: aah.$1,
-      total: rsa.$1 + apl.$1 + prime.$1 + af.$1 + aah.$1,
+      cmg: cmg.$1,
+      paje: paje.$1,
+      cf: cf.$1,
+      prepare: prepare.$1,
+      ars: ars.$1,
+      total: rsa.$1 + apl.$1 + prime.$1 + af.$1 + aah.$1 + cmg.$1 + paje.$1 + cf.$1 + prepare.$1 + ars.$1,
       details: {
         'rsa': rsa.$2,
         'apl': apl.$2,
         'prime_activite': prime.$2,
         'af': af.$2,
         'aah': aah.$2,
+        'cmg': cmg.$2,
+        'paje': paje.$2,
+        'cf': cf.$2,
+        'prepare': prepare.$2,
+        'ars': ars.$2,
       },
     );
 
@@ -133,7 +182,266 @@ class CalculLocalService {
       disclaimer: 'Calcul basé sur les barèmes officiels au 1er avril 2026 '
           '(Décrets n° 2026-220 à 229 du 30/03/2026, JO 31/03/2026). '
           'Ce calcul est indicatif et peut différer du calcul officiel de la CAF.',
+      suggestions: _suggestionsAides(situation, droits),
     );
+  }
+
+  // ============================================================
+  // CMG — Art. L531-5 CSS (porté depuis BudgetBébé)
+  // ============================================================
+
+  (double, String) _calculerCMG(Situation s) {
+    if (s.modeGarde == ModeGarde.aucun) {
+      return (0.0, 'CMG : aucun mode de garde renseigné. [${sourcesLegales['cmg']}]');
+    }
+    // Éligible uniquement si au moins un enfant < 6 ans
+    final aEnfantMoins6 = s.agesEnfants.any((a) => a < 6);
+    if (!aEnfantMoins6 && s.nombreEnfants > 0) {
+      return (0.0, 'CMG : aucun enfant de moins de 6 ans. [${sourcesLegales['cmg']}]');
+    }
+    if (s.nombreEnfants == 0) {
+      return (0.0, 'CMG : aucun enfant. [${sourcesLegales['cmg']}]');
+    }
+
+    final revenusAnnuels = (s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus) * 12;
+    final key = s.modeGarde == ModeGarde.assistanteMaternelle
+        ? 'assistante_maternelle'
+        : s.modeGarde == ModeGarde.creche
+            ? 'creche'
+            : 'garde_domicile';
+
+    final tranches = _cmgMontants[key]!;
+    double montantBrut;
+    String tranche;
+    if (revenusAnnuels <= _cmgSeuil1) {
+      montantBrut = tranches[0];
+      tranche = 'tranche 1 (≤ ${_cmgSeuil1.toStringAsFixed(0)}€/an)';
+    } else if (revenusAnnuels <= _cmgSeuil2) {
+      montantBrut = tranches[1];
+      tranche = 'tranche 2 (≤ ${_cmgSeuil2.toStringAsFixed(0)}€/an)';
+    } else {
+      montantBrut = tranches[2];
+      tranche = 'tranche 3 (> ${_cmgSeuil2.toStringAsFixed(0)}€/an)';
+    }
+
+    final montant = _arrondi(s.gardeAlternee ? montantBrut / 2 : montantBrut);
+    final modeLabel = s.modeGarde == ModeGarde.assistanteMaternelle
+        ? 'assistante maternelle'
+        : s.modeGarde == ModeGarde.creche
+            ? 'crèche'
+            : 'garde à domicile';
+
+    return (
+      montant,
+      'CMG ($modeLabel) : $montant€/mois — $tranche'
+          '${s.gardeAlternee ? ' (garde alternée ÷2)' : ''}. '
+          '[${sourcesLegales['cmg']}]'
+    );
+  }
+
+  // ============================================================
+  // PAJE base — Art. L531-2 CSS (porté depuis BudgetBébé)
+  // ============================================================
+
+  (double, String) _calculerPAJE(Situation s) {
+    final aEnfantMoins3 = s.agesEnfants.any((a) => a < 3);
+    if (!aEnfantMoins3 && s.nombreEnfants > 0) {
+      return (0.0, 'PAJE : aucun enfant de moins de 3 ans. [${sourcesLegales['paje']}]');
+    }
+    if (s.nombreEnfants == 0) {
+      return (0.0, 'PAJE : aucun enfant. [${sourcesLegales['paje']}]');
+    }
+
+    final revenusAnnuels = (s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus) * 12;
+    final isole = s.situationFamiliale == SituationFamiliale.seul;
+    final plafonds = isole ? _pajePlafondIsole : _pajePlafondCouple;
+    final suppParEnfant = isole ? _pajePlafondIsoleParEnfantSupp : _pajePlafondCoupleParEnfantSupp;
+
+    final idx = (s.nombreEnfants - 1).clamp(0, plafonds.length - 1);
+    final plafondBase = plafonds[idx];
+    final extraEnfants = s.nombreEnfants > plafonds.length ? (s.nombreEnfants - plafonds.length) * suppParEnfant : 0.0;
+    final plafond = plafondBase + extraEnfants;
+
+    if (revenusAnnuels > plafond * 2) {
+      return (0.0, 'PAJE : revenus (${revenusAnnuels.toStringAsFixed(0)}€/an) > 2× plafond. [${sourcesLegales['paje']}]');
+    }
+
+    final montant = revenusAnnuels <= plafond ? _pajeTauxPlein : _pajeTauxPartiel;
+    final taux = revenusAnnuels <= plafond ? 'taux plein' : 'taux partiel';
+
+    return (
+      montant,
+      'PAJE base : ${montant.toStringAsFixed(2)}€/mois ($taux — enfant < 3 ans). '
+          '[${sourcesLegales['paje']}]'
+    );
+  }
+
+  // ============================================================
+  // COMPLÉMENT FAMILIAL — Art. L522-1 CSS (porté depuis BudgetBébé)
+  // ============================================================
+
+  (double, String) _calculerCF(Situation s) {
+    if (s.nombreEnfants < 3) {
+      return (0.0, 'CF : 3 enfants minimum requis (${s.nombreEnfants} déclarés). [${sourcesLegales['cf']}]');
+    }
+    // Tous les enfants doivent avoir entre 3 et 21 ans
+    final enfantsEligibles = s.agesEnfants.where((a) => a >= 3 && a <= 21).length;
+    if (s.agesEnfants.isNotEmpty && enfantsEligibles < 3) {
+      return (0.0, 'CF : 3 enfants entre 3 et 21 ans requis. [${sourcesLegales['cf']}]');
+    }
+
+    final revenusAnnuels = (s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus) * 12;
+
+    if (revenusAnnuels > _cfSeuilNormal) {
+      return (0.0, 'CF : revenus > plafond (${_cfSeuilNormal.toStringAsFixed(0)}€/an). [${sourcesLegales['cf']}]');
+    }
+
+    final montantBrut = revenusAnnuels <= _cfSeuilMajore ? _cfMontantMajore : _cfMontantNormal;
+    final montant = _arrondi(s.gardeAlternee ? montantBrut / 2 : montantBrut);
+    final niveau = revenusAnnuels <= _cfSeuilMajore ? 'majoré' : 'normal';
+
+    return (
+      montant,
+      'Complément familial : $montant€/mois ($niveau — ${s.nombreEnfants} enfants). '
+          '[${sourcesLegales['cf']}]'
+    );
+  }
+
+  // ============================================================
+  // PreParE — Art. L531-4 CSS (portó depuis BudgetBébé)
+  // ============================================================
+
+  (double, String) _calculerPreParE(Situation s) {
+    if (s.congeParental == CongeParental.aucun) {
+      return (0.0, 'PreParE : aucun congé parental. [${sourcesLegales['prepare']}]');
+    }
+    if (s.nombreEnfants == 0) {
+      return (0.0, 'PreParE : aucun enfant. [${sourcesLegales['prepare']}]');
+    }
+
+    final montant = s.congeParental == CongeParental.tauxPlein
+        ? _prepareTauxPlein
+        : _prepareTauxDemi;
+    final type = s.congeParental == CongeParental.tauxPlein
+        ? 'taux plein (arrêt complet)'
+        : 'taux demi (mi-temps)';
+
+    return (
+      montant,
+      'PreParE : ${montant.toStringAsFixed(2)}€/mois ($type). '
+          '[${sourcesLegales['prepare']}]'
+    );
+  }
+
+  // ============================================================
+  // AIDES MÉCONNUES — suggestions contextuelles
+  // ============================================================
+
+  List<AideSuggestion> _suggestionsAides(Situation s, DroitsResult droits) {
+    final suggestions = <AideSuggestion>[];
+
+    // Revenus totaux du foyer (incluant aides calculées)
+    final revenuMensuel = s.revenuActiviteDemandeur +
+        s.revenuActiviteConjoint +
+        s.totalAutresRevenus +
+        droits.rsa +
+        droits.aah;
+
+    // CSS (Complémentaire Santé Solidaire) — si revenus modestes
+    // Seuil approximatif 2026 : ~1090€/mois pour 1 pers, ~1600€ pour 2
+    final seuilCSS = s.situationFamiliale == SituationFamiliale.couple ? 1600.0 : 1090.0;
+    if (revenuMensuel < seuilCSS) {
+      suggestions.add(const AideSuggestion(
+        titre: 'Complémentaire Santé Solidaire (CSS)',
+        description:
+            'Mutuelle gratuite ou quasi-gratuite (moins de 1€/mois). Couvre soins, médicaments, dentaire et optique. '
+            'Attribuée automatiquement aux bénéficiaires du RSA.',
+        source: 'Ameli.fr — ameli.fr/assure/droits-demarches/complementaire-sante-solidaire',
+      ));
+    }
+
+    // Chèque Énergie — si RSA ou revenus < 10 700€/an (1 pers)
+    if (droits.rsa > 0 || revenuMensuel * 12 < 10700) {
+      suggestions.add(const AideSuggestion(
+        titre: 'Chèque Énergie',
+        description:
+            'De 48€ à 277€/an pour payer vos factures d\'énergie ou travaux d\'isolation. '
+            'Envoyé automatiquement par l\'État selon vos revenus N-2.',
+        source: 'chequeenergie.gouv.fr',
+      ));
+    }
+
+    // PCH — si handicap 80%+
+    if (s.tauxHandicap != null && s.tauxHandicap! >= 80) {
+      suggestions.add(const AideSuggestion(
+        titre: 'PCH — Prestation de Compensation du Handicap',
+        description:
+            'Aide financière pour compenser les surcoûts liés au handicap : aide humaine à domicile, '
+            'aménagement du logement et du véhicule, équipements spéciaux. Non plafonnée par les revenus.',
+        source: 'MDPH de votre département',
+      ));
+    }
+
+    // RQTH — si handicap reconnu
+    if (s.tauxHandicap != null && s.tauxHandicap! >= 50) {
+      suggestions.add(const AideSuggestion(
+        titre: 'RQTH — Reconnaissance Qualité Travailleur Handicapé',
+        description:
+            'Facilite le maintien dans l\'emploi et l\'accès à la formation. Permet l\'accès à l\'ESAT, '
+            'aux aménagements de poste, et à des aides spécifiques de France Travail (AGEFIPH).',
+        source: 'MDPH de votre département',
+      ));
+    }
+
+    // ARS : maintenant dans le moteur de calcul (_calculerARS), pas en suggestion
+
+    // CMG — si enfant < 6 ans
+    final enfantsMoins6 = s.agesEnfants.where((a) => a < 6).length;
+    if (enfantsMoins6 > 0) {
+      suggestions.add(AideSuggestion(
+        titre: 'CMG — Complément Mode de Garde',
+        description:
+            '${enfantsMoins6 > 1 ? '$enfantsMoins6 enfants < 6 ans. ' : ''}'
+            'Aide pour garde par assistante maternelle, crèche ou garde à domicile. '
+            'Jusqu\'à 1 842€/mois selon la solution de garde et vos revenus.',
+        source: 'CAF.fr — à demander directement sur votre espace allocataire',
+      ));
+    }
+
+    // FSL — si locataire avec faibles revenus
+    if (s.statutLogement == StatutLogement.locataire && revenuMensuel < 1800) {
+      suggestions.add(const AideSuggestion(
+        titre: 'FSL — Fonds de Solidarité Logement',
+        description:
+            'Aide départementale non remboursable pour accéder à un logement ou s\'y maintenir : '
+            'dépôt de garantie, premier loyer, loyers impayés, factures d\'eau et d\'énergie.',
+        source: 'Conseil Départemental de votre département (service Action Sociale)',
+      ));
+    }
+
+    // Aide alimentaire — si revenus très faibles
+    if (revenuMensuel < 900) {
+      suggestions.add(const AideSuggestion(
+        titre: 'Épiceries sociales et aide alimentaire',
+        description:
+            'Accès à une épicerie sociale (courses à prix réduits) ou colis alimentaires gratuits. '
+            'Réseau ANDES, Banques Alimentaires, Croix-Rouge, Secours Catholique.',
+        source: 'CCAS (Centre Communal d\'Action Sociale) de votre commune',
+      ));
+    }
+
+    // Tarifs sociaux transport — si revenus faibles
+    if (revenuMensuel * 12 < 12000) {
+      suggestions.add(const AideSuggestion(
+        titre: 'Tarifs sociaux transports',
+        description:
+            'Réductions de 50 à 75% sur le réseau SNCF (carte Avantage Solidarité), '
+            'les transports en commun régionaux, et parfois les transports urbains locaux.',
+        source: 'Votre région et opérateur de transport local',
+      ));
+    }
+
+    return suggestions;
   }
 
   // ============================================================
@@ -405,6 +713,47 @@ class CalculLocalService {
   // ÉCART
   // ============================================================
 
+  // ============================================================
+  // ARS — Art. L543-1 CSS — Allocation de Rentrée Scolaire
+  // Barèmes 2026 : 403,72€ (6-10 ans) / 424,95€ (11-14 ans) / 440,65€ (15-18 ans)
+  // Plafonds RFR 2026 : 25 336€ (isolé 1 enfant) / 32 267€ (couple 1 enfant) +8 153€/enfant
+  // Note : versement annuel en août — affiché en équivalent mensuel (÷ 12)
+  // ============================================================
+
+  (double, String) _calculerARS(Situation s) {
+    if (s.nombreEnfants == 0 || s.agesEnfants.isEmpty) {
+      return (0.0, 'ARS : aucun enfant. [Art. L543-1 CSS]');
+    }
+
+    final revenuAnnuel = (s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus) * 12;
+    final plafondBase = s.parentIsole ? 25336.0 : 32267.0;
+    final plafondTotal = plafondBase + (s.nombreEnfants - 1) * 8153.0;
+
+    if (revenuAnnuel > plafondTotal) {
+      return (0.0,
+          'ARS : revenus au-dessus du plafond (${revenuAnnuel.toStringAsFixed(0)}€ > ${plafondTotal.toStringAsFixed(0)}€). [Art. L543-1 CSS]');
+    }
+
+    double totalAnnuel = 0;
+    for (final age in s.agesEnfants) {
+      if (age >= 6 && age < 11) {
+        totalAnnuel += 403.72;
+      } else if (age >= 11 && age < 15) {
+        totalAnnuel += 424.95;
+      } else if (age >= 15 && age <= 18) {
+        totalAnnuel += 440.65;
+      }
+    }
+
+    if (totalAnnuel == 0) {
+      return (0.0, 'ARS : aucun enfant entre 6 et 18 ans. [Art. L543-1 CSS]');
+    }
+
+    final mensuel = _arrondi(totalAnnuel / 12);
+    return (mensuel,
+        'ARS : ${totalAnnuel.toStringAsFixed(0)}€/an (versé en août) = ${mensuel.toStringAsFixed(0)}€/mois équivalent. [Art. L543-1 CSS]');
+  }
+
   EcartResult _calculerEcart(DroitsResult droits, Map<String, double> percu) {
     final ecarts = <String, double>{};
     var ecartTotal = 0.0;
@@ -416,6 +765,11 @@ class CalculLocalService {
       'prime_activite': droits.primeActivite,
       'af': droits.af,
       'aah': droits.aah,
+      'cmg': droits.cmg,
+      'paje': droits.paje,
+      'cf': droits.cf,
+      'prepare': droits.prepare,
+      'ars': droits.ars,
     };
 
     for (final entry in aides.entries) {

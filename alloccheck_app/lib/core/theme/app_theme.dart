@@ -24,6 +24,11 @@ class AppTheme {
     'prime_activite': Color(0xFF059669),
     'af': Color(0xFFD97706),
     'aah': Color(0xFFDB2777),
+    'cmg': Color(0xFF0891B2),
+    'paje': Color(0xFF0D9488),
+    'cf': Color(0xFFEA580C),
+    'prepare': Color(0xFF7C3AED),
+    'ars': Color(0xFFDC2626),
   };
 
   static const Map<String, String> aideLabels = {
@@ -32,6 +37,11 @@ class AppTheme {
     'prime_activite': 'Prime d\'activité',
     'af': 'Allocations familiales',
     'aah': 'AAH',
+    'cmg': 'CMG',
+    'paje': 'PAJE (base)',
+    'cf': 'Complément familial',
+    'prepare': 'PreParE',
+    'ars': 'ARS (rentrée scolaire)',
   };
 
   static const Map<String, IconData> aideIcons = {
@@ -40,6 +50,11 @@ class AppTheme {
     'prime_activite': Icons.trending_up,
     'af': Icons.family_restroom,
     'aah': Icons.accessibility_new,
+    'cmg': Icons.child_care,
+    'paje': Icons.baby_changing_station,
+    'cf': Icons.people,
+    'prepare': Icons.self_improvement,
+    'ars': Icons.school,
   };
 
   static ThemeData get lightTheme {

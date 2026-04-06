@@ -1,12 +1,22 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'core/theme/app_theme.dart';
 import 'core/models/situation.dart';
 import 'core/models/droits_result.dart';
+import 'core/services/payment_service.dart';
 import 'features/simulation/screens/simulation_screen.dart';
 import 'features/results/screens/results_screen.dart';
 import 'features/letter/screens/letter_screen.dart';
 
+/// Token Stripe capturé avant tout initialisation Flutter (avant réécriture URL).
+String? _stripeReturnToken;
+
 void main() {
+  if (kIsWeb) {
+    _stripeReturnToken = Uri.base.queryParameters['paid'];
+    usePathUrlStrategy();
+  }
   runApp(const AllocCheckApp());
 }
 
@@ -51,8 +61,75 @@ class AllocCheckApp extends StatelessWidget {
 }
 
 /// Écran d'accueil
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  Situation? _lastSimulation;
+  DateTime? _lastSimulationDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPaymentReturn();
+    _loadLastSimulation();
+  }
+
+  /// Détecte le retour depuis Stripe (?paid=TOKEN) et restaure la simulation.
+  Future<void> _checkPaymentReturn() async {
+    final justUnlocked = await PaymentService.checkUrlAndUnlock(
+      urlToken: _stripeReturnToken,
+    );
+    _stripeReturnToken = null; // consommé
+    if (!justUnlocked) return;
+
+    final situation = await PaymentService.getSavedSituation();
+    if (!mounted) return;
+
+    if (situation == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Accès débloqué ! Lancez une simulation pour voir votre rapport complet.'),
+          duration: Duration(seconds: 5),
+          backgroundColor: Color(0xFF059669),
+        ),
+      );
+      return;
+    }
+
+    await PaymentService.clearSavedSituation();
+    if (!mounted) return;
+    Navigator.of(context).pushNamed('/results', arguments: situation);
+  }
+
+  Future<void> _loadLastSimulation() async {
+    final sim = await PaymentService.getLastSimulation();
+    final date = await PaymentService.getLastSimulationDate();
+    if (mounted) {
+      setState(() {
+        _lastSimulation = sim;
+        _lastSimulationDate = date;
+      });
+    }
+  }
+
+  void _resumeLastSimulation() {
+    if (_lastSimulation == null) return;
+    Navigator.of(context).pushNamed('/results', arguments: _lastSimulation);
+  }
+
+  String _formatRelativeDate(DateTime date) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 60) return 'il y a ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'il y a ${diff.inHours}h';
+    if (diff.inDays == 1) return 'hier';
+    return 'il y a ${diff.inDays} jours';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -107,6 +184,48 @@ class HomeScreen extends StatelessWidget {
 
               const Spacer(),
 
+              // Reprendre la dernière simulation
+              if (_lastSimulation != null && _lastSimulationDate != null) ...[
+                InkWell(
+                  onTap: _resumeLastSimulation,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.primary.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.history, size: 18, color: AppTheme.primary),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Reprendre votre dernière simulation',
+                                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                      color: AppTheme.primary,
+                                    ),
+                              ),
+                              Text(
+                                _formatRelativeDate(_lastSimulationDate!),
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right, size: 18, color: AppTheme.primary),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
               // CTA
               SizedBox(
                 width: double.infinity,
@@ -115,7 +234,7 @@ class HomeScreen extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 18),
                   ),
-                  child: const Text('Vérifier vos droits'),
+                  child: Text(_lastSimulation != null ? 'Nouvelle simulation' : 'Vérifier vos droits'),
                 ),
               ),
               const SizedBox(height: 12),
@@ -126,7 +245,6 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'Outil d\'aide à la compréhension de vos droits.\nNe constitue pas un conseil juridique.',
-                // Disclaimer déjà en vouvoiement — OK
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 10),
                 textAlign: TextAlign.center,
               ),

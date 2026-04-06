@@ -23,6 +23,11 @@ class Situation {
   // Handicap
   final int? tauxHandicap;
 
+  // Garde et congé parental (CMG, PAJE, PreParE)
+  final ModeGarde modeGarde;
+  final CongeParental congeParental;
+  final bool gardeAlternee;
+
   // Ce que l'utilisateur perçoit actuellement
   final Map<String, double> montantPercu;
 
@@ -40,6 +45,9 @@ class Situation {
     required this.loyerMensuel,
     required this.statutLogement,
     this.tauxHandicap,
+    this.modeGarde = ModeGarde.aucun,
+    this.congeParental = CongeParental.aucun,
+    this.gardeAlternee = false,
     this.montantPercu = const {},
   });
 
@@ -61,6 +69,72 @@ class Situation {
         if (tauxHandicap != null) 'taux_handicap': tauxHandicap,
         if (montantPercu.isNotEmpty) 'montant_percu': montantPercu,
       };
+
+  /// Sérialisation complète pour persistence localStorage (PaymentService)
+  Map<String, dynamic> toJsonFull() => {
+        'sf': situationFamiliale.name,
+        'ne': nombreEnfants,
+        'ae': agesEnfants,
+        'pi': parentIsole,
+        'srd': sourceRevenuDemandeur?.name,
+        'rad': revenuActiviteDemandeur,
+        'src': sourceRevenuConjoint?.name,
+        'rac': revenuActiviteConjoint,
+        'ar': autresRevenus
+            .map((r) => {'t': r.type.name, 'm': r.montantMensuel})
+            .toList(),
+        'zl': zoneLogement.name,
+        'lm': loyerMensuel,
+        'sl': statutLogement.name,
+        'th': tauxHandicap,
+        'mg': modeGarde.name,
+        'cp': congeParental.name,
+        'ga': gardeAlternee,
+        'mp': montantPercu,
+      };
+
+  factory Situation.fromJson(Map<String, dynamic> j) => Situation(
+        situationFamiliale: SituationFamiliale.values
+            .firstWhere((e) => e.name == j['sf']),
+        nombreEnfants: j['ne'] as int,
+        agesEnfants: List<int>.from(j['ae'] ?? []),
+        parentIsole: j['pi'] as bool? ?? false,
+        sourceRevenuDemandeur: j['srd'] != null
+            ? SourceRevenuActivite.values
+                .firstWhere((e) => e.name == j['srd'])
+            : null,
+        revenuActiviteDemandeur: (j['rad'] as num).toDouble(),
+        sourceRevenuConjoint: j['src'] != null
+            ? SourceRevenuActivite.values
+                .firstWhere((e) => e.name == j['src'])
+            : null,
+        revenuActiviteConjoint: (j['rac'] as num? ?? 0).toDouble(),
+        autresRevenus: (j['ar'] as List<dynamic>? ?? []).map((r) {
+          final map = r as Map<String, dynamic>;
+          return AutreRevenu(
+            type: TypeAutreRevenu.values
+                .firstWhere((e) => e.name == map['t']),
+            montantMensuel: (map['m'] as num).toDouble(),
+          );
+        }).toList(),
+        zoneLogement:
+            ZoneLogement.values.firstWhere((e) => e.name == j['zl']),
+        loyerMensuel: (j['lm'] as num).toDouble(),
+        statutLogement:
+            StatutLogement.values.firstWhere((e) => e.name == j['sl']),
+        tauxHandicap: j['th'] as int?,
+        modeGarde: j['mg'] != null
+            ? ModeGarde.values.firstWhere((e) => e.name == j['mg'])
+            : ModeGarde.aucun,
+        congeParental: j['cp'] != null
+            ? CongeParental.values.firstWhere((e) => e.name == j['cp'])
+            : CongeParental.aucun,
+        gardeAlternee: j['ga'] as bool? ?? false,
+        montantPercu: j['mp'] != null
+            ? Map<String, double>.from((j['mp'] as Map)
+                .map((k, v) => MapEntry(k as String, (v as num).toDouble())))
+            : {},
+      );
 }
 
 enum SituationFamiliale {
@@ -90,6 +164,19 @@ enum StatutLogement {
 }
 
 /// Source du revenu d'activité principal
+enum ModeGarde {
+  aucun,
+  assistanteMaternelle,
+  creche,
+  gardeADomicile,
+}
+
+enum CongeParental {
+  aucun,
+  tauxPlein,
+  tauxDemi,
+}
+
 enum SourceRevenuActivite {
   salarie('Salarié(e)'),
   independant('Indépendant / Auto-entrepreneur'),

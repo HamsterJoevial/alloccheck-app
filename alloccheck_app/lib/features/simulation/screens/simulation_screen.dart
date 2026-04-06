@@ -42,12 +42,19 @@ class _SimulationScreenState extends State<SimulationScreen> {
   ZoneLogement _zoneLogement = ZoneLogement.zone2;
   StatutLogement _statutLogement = StatutLogement.locataire;
   final _loyerController = TextEditingController();
+  final _codePostalController = TextEditingController();
+
+  // Garde et congé parental
+  ModeGarde _modeGarde = ModeGarde.aucun;
+  CongeParental _congeParental = CongeParental.aucun;
+  bool _gardeAlternee = false;
 
   // Handicap
   bool _aHandicap = false;
   int _tauxHandicap = 80;
 
   // Step 4 — Montants perçus (comparaison)
+  bool _percevaitAAH = false; // case spéciale si handicap coché
   final Map<String, bool> _percuActifs = {
     'rsa': false,
     'apl': false,
@@ -69,6 +76,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
     _revenuDemandeurController.dispose();
     _revenuConjointController.dispose();
     _loyerController.dispose();
+    _codePostalController.dispose();
     for (final c in _autresRevenusControllers.values) {
       c.dispose();
     }
@@ -184,6 +192,11 @@ class _SimulationScreenState extends State<SimulationScreen> {
         montantPercu[entry.key] = montant;
       }
     }
+    // AAH : si l'utilisateur déclare la percevoir, on marque avec le barème max
+    // L'écart sera 0 (percé >= théorique dans tous les cas)
+    if (_aHandicap && _percevaitAAH) {
+      montantPercu['aah'] = 1041.59; // barème max AAH 2026 — Décret n° 2026-229
+    }
 
     final situation = Situation(
       situationFamiliale: _situationFamiliale,
@@ -201,6 +214,9 @@ class _SimulationScreenState extends State<SimulationScreen> {
       loyerMensuel: double.tryParse(_loyerController.text.replaceAll(',', '.')) ?? 0,
       statutLogement: _statutLogement,
       tauxHandicap: _aHandicap ? _tauxHandicap : null,
+      modeGarde: _modeGarde,
+      congeParental: _congeParental,
+      gardeAlternee: _gardeAlternee,
       montantPercu: montantPercu,
     );
 
@@ -346,13 +362,60 @@ class _SimulationScreenState extends State<SimulationScreen> {
             ),
           ],
 
+          // Mode de garde (si enfant < 6 ans présent ou inconnu)
+          if (_nombreEnfants > 0 && (_agesEnfants.isEmpty || _agesEnfants.any((a) => a < 6))) ...[
+            const SizedBox(height: 24),
+            _buildSectionTitle('Mode de garde (enfant < 6 ans) :'),
+            const SizedBox(height: 8),
+            _buildRadioList<ModeGarde>(
+              items: ModeGarde.values,
+              value: _modeGarde,
+              labelBuilder: (v) {
+                switch (v) {
+                  case ModeGarde.aucun: return 'Aucun / parent présent';
+                  case ModeGarde.assistanteMaternelle: return 'Assistante maternelle agréée';
+                  case ModeGarde.creche: return 'Crèche collective';
+                  case ModeGarde.gardeADomicile: return 'Garde à domicile';
+                }
+              },
+              onChanged: (v) => setState(() => _modeGarde = v),
+            ),
+            const SizedBox(height: 12),
+            _buildSectionTitle('Congé parental :'),
+            const SizedBox(height: 8),
+            _buildRadioList<CongeParental>(
+              items: CongeParental.values,
+              value: _congeParental,
+              labelBuilder: (v) {
+                switch (v) {
+                  case CongeParental.aucun: return 'Pas de congé parental';
+                  case CongeParental.tauxPlein: return 'Congé parental taux plein (arrêt complet) — 396€/mois';
+                  case CongeParental.tauxDemi: return 'Congé parental mi-temps — 256€/mois';
+                }
+              },
+              onChanged: (v) => setState(() => _congeParental = v),
+            ),
+            if (_situationFamiliale == SituationFamiliale.couple) ...[
+              const SizedBox(height: 12),
+              _buildCheckTile(
+                'Garde alternée',
+                'Enfant(s) en résidence alternée (divise certaines aides par 2)',
+                _gardeAlternee,
+                (v) => setState(() => _gardeAlternee = v),
+              ),
+            ],
+          ],
+
           // Handicap
           const SizedBox(height: 24),
           _buildCheckTile(
             'Situation de handicap',
             'Taux d\'incapacité reconnu par la MDPH',
             _aHandicap,
-            (v) => setState(() => _aHandicap = v),
+            (v) => setState(() {
+              _aHandicap = v;
+              if (!v) _percevaitAAH = false;
+            }),
           ),
           if (_aHandicap) ...[
             const SizedBox(height: 12),
@@ -365,6 +428,13 @@ class _SimulationScreenState extends State<SimulationScreen> {
                   ? 'Entre 50% et 79% (AAH sous conditions)'
                   : '80% ou plus (AAH pleine)',
               onChanged: (v) => setState(() => _tauxHandicap = v),
+            ),
+            const SizedBox(height: 12),
+            _buildCheckTile(
+              'Je perçois déjà l\'AAH',
+              'L\'AAH est calculée automatiquement — cochez si vous la touchez déjà',
+              _percevaitAAH,
+              (v) => setState(() => _percevaitAAH = v),
             ),
           ],
         ],
@@ -570,25 +640,45 @@ class _SimulationScreenState extends State<SimulationScreen> {
           ],
 
           const SizedBox(height: 24),
-          _buildSectionTitle('Zone de votre commune :'),
+          _buildSectionTitle('Code postal de votre commune :'),
           const SizedBox(height: 8),
-          _buildRadioList<ZoneLogement>(
-            items: ZoneLogement.values,
-            value: _zoneLogement,
-            labelBuilder: (v) {
-              switch (v) {
-                case ZoneLogement.zone1: return 'Zone 1 — Paris et communes limitrophes';
-                case ZoneLogement.zone2: return 'Zone 2 — Agglomérations > 100 000 hab.';
-                case ZoneLogement.zone3: return 'Zone 3 — Reste de la France';
+          TextFormField(
+            controller: _codePostalController,
+            keyboardType: TextInputType.number,
+            maxLength: 5,
+            decoration: const InputDecoration(
+              hintText: 'Ex : 57000, 75001, 69003…',
+              prefixIcon: Icon(Icons.location_on_outlined),
+              counterText: '',
+            ),
+            onChanged: (val) {
+              if (val.length == 5) {
+                final zone = _zoneFromCodePostal(val);
+                setState(() => _zoneLogement = zone);
               }
             },
-            onChanged: (v) => setState(() => _zoneLogement = v),
           ),
-
-          const SizedBox(height: 16),
-          _buildInfoBox(
-            'En cas de doute sur votre zone, sélectionnez Zone 3 (la plus courante). '
-            'Vous pouvez vérifier sur Service-Public.fr avec votre code postal.',
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppTheme.primary.withValues(alpha: 0.2)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.map_outlined, size: 16, color: AppTheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Zone détectée : ${_zoneLabelCourt(_zoneLogement)}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -663,14 +753,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
             );
           }),
 
-          const SizedBox(height: 16),
-          if (_aHandicap) ...[
-            _buildInfoBox(
-              'L\'AAH est calculée automatiquement à partir de votre taux '
-              'de handicap. Elle n\'apparaît pas ici.',
-            ),
-            const SizedBox(height: 8),
-          ],
+          const SizedBox(height: 8),
           _buildInfoBox(
             'Si vous ne percevez aucune aide, laissez tout décoché. '
             'AllocCheck vous dira si vous y avez droit.',
@@ -683,6 +766,112 @@ class _SimulationScreenState extends State<SimulationScreen> {
   // ============================================================
   // COMPOSANTS RÉUTILISABLES
   // ============================================================
+
+  /// Mapping code postal → zone APL (source : Arrêté du 01/01/2020 mis à jour)
+  /// Zone 1 : Paris (75) + petite couronne (92, 93, 94)
+  /// Zone 2 : grandes agglomérations > 100 000 hab.
+  /// Zone 3 : reste de la France
+  ZoneLogement _zoneFromCodePostal(String cp) {
+    if (cp.length < 2) return ZoneLogement.zone3;
+    final dep = cp.substring(0, 2);
+
+    // Zone 1 : Paris + petite couronne
+    if (dep == '75' || dep == '92' || dep == '93' || dep == '94') {
+      return ZoneLogement.zone1;
+    }
+
+    // Zone 2 : grande couronne + grandes agglomérations
+    // Départements entièrement Zone 2 : 77, 78, 91, 95
+    if (dep == '77' || dep == '78' || dep == '91' || dep == '95') {
+      return ZoneLogement.zone2;
+    }
+
+    // Départements dont la quasi-totalité est Zone 2 (métropoles dominantes)
+    const zone2Deps = {
+      '06', // Nice + côte
+      '13', // Marseille / Aix-en-Provence
+      '31', // Toulouse
+      '33', // Bordeaux
+      '34', // Montpellier
+      '35', // Rennes
+      '38', // Grenoble
+      '44', // Nantes
+      '59', // Lille / Roubaix / Valenciennes / Dunkerque
+      '67', // Strasbourg
+      '69', // Lyon / Villeurbanne
+    };
+    if (zone2Deps.contains(dep)) return ZoneLogement.zone2;
+
+    // DOM 3 chiffres
+    if (cp.startsWith('972') || cp.startsWith('974')) return ZoneLogement.zone2;
+
+    // Agglomérations Zone 2 détectées par code postal précis
+    // (départements dont seule la ville-centre est Zone 2)
+    const zone2CP = {
+      // Tours (37)
+      '37000', '37100', '37200',
+      // Dijon (21)
+      '21000', '21100', '21240',
+      // Reims (51)
+      '51100', '51430', '51200',
+      // Nancy (54)
+      '54000', '54100', '54130', '54140', '54180', '54500', '54600',
+      // Metz (57) — pas tout le 57
+      '57000', '57050', '57070', '57078',
+      // Thionville (57)
+      '57100', '57130',
+      // Lens-Béthune (62)
+      '62300', '62400', '62700',
+      // Compiègne (60)
+      '60200',
+      // Clermont-Ferrand (63)
+      '63000', '63100', '63170', '63800',
+      // Mulhouse (68)
+      '68100', '68200', '68390',
+      // Annecy (74)
+      '74000', '74100', '74370', '74960',
+      // Rouen (76)
+      '76000', '76100', '76130', '76300',
+      // Le Havre (76)
+      '76600', '76620',
+      // Amiens (80)
+      '80000', '80090', '80080', '80440',
+      // Toulon (83)
+      '83000', '83100', '83200', '83500',
+      // Avignon (84)
+      '84000', '84140', '84300',
+      // La Roche-sur-Yon (85)
+      '85000',
+      // Orléans (45)
+      '45000', '45100', '45140', '45160',
+      // Angers (49)
+      '49000', '49100', '49130',
+      // Brest (29)
+      '29200',
+      // Caen (14)
+      '14000', '14100', '14200',
+      // Poitiers (86)
+      '86000', '86280',
+      // Limoges (87)
+      '87000', '87100', '87280',
+      // Laon (02)
+      '02000',
+      // Charleville-Mézières (08)
+      '08000',
+    };
+    if (zone2CP.contains(cp)) return ZoneLogement.zone2;
+
+    // Tout le reste : Zone 3
+    return ZoneLogement.zone3;
+  }
+
+  String _zoneLabelCourt(ZoneLogement zone) {
+    switch (zone) {
+      case ZoneLogement.zone1: return 'Zone 1 (Paris / petite couronne)';
+      case ZoneLogement.zone2: return 'Zone 2 (grande agglomération)';
+      case ZoneLogement.zone3: return 'Zone 3 (reste de la France)';
+    }
+  }
 
   Widget _buildSectionTitle(String text) {
     return Text(text, style: Theme.of(context).textTheme.titleMedium);
