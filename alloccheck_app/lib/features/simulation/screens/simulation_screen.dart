@@ -19,10 +19,18 @@ class _SimulationScreenState extends State<SimulationScreen> {
   static const int _totalSteps = 4;
 
   // Step 1 — Situation familiale
-  SituationFamiliale _situationFamiliale = SituationFamiliale.seul;
+  StatutConjugal _statutConjugal = StatutConjugal.celibataire;
   int _nombreEnfants = 0;
-  bool _parentIsole = false;
   final List<int> _agesEnfants = [];
+  bool _versePension = false;
+  bool _recoitPension = false;
+  bool _pensionNonPercue = false;
+  final _pensionVerseeController = TextEditingController();
+  final _pensionRecueController = TextEditingController();
+  SituationVie _situationVie = SituationVie.autonome;
+  bool _besoinTiercePersonne = false;
+
+  bool get _isCouple => [StatutConjugal.marie, StatutConjugal.pacse, StatutConjugal.concubin].contains(_statutConjugal);
 
   // Step 2 — Revenus
   SourceRevenuActivite _sourceRevenuDemandeur = SourceRevenuActivite.aucun;
@@ -43,6 +51,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
   StatutLogement _statutLogement = StatutLogement.locataire;
   final _loyerController = TextEditingController();
   final _codePostalController = TextEditingController();
+  bool _logementConventionne = true;
 
   // Garde et congé parental
   ModeGarde _modeGarde = ModeGarde.aucun;
@@ -61,6 +70,13 @@ class _SimulationScreenState extends State<SimulationScreen> {
     'prime_activite': false,
     'af': false,
     'aah': false,
+    'cmg': false,
+    'paje': false,
+    'cf': false,
+    'prepare': false,
+    'ars': false,
+    'mva': false,
+    'asf': false,
   };
   final Map<String, TextEditingController> _percuControllers = {
     'rsa': TextEditingController(),
@@ -68,6 +84,13 @@ class _SimulationScreenState extends State<SimulationScreen> {
     'prime_activite': TextEditingController(),
     'af': TextEditingController(),
     'aah': TextEditingController(),
+    'cmg': TextEditingController(),
+    'paje': TextEditingController(),
+    'cf': TextEditingController(),
+    'prepare': TextEditingController(),
+    'ars': TextEditingController(),
+    'mva': TextEditingController(),
+    'asf': TextEditingController(),
   };
 
   @override
@@ -77,6 +100,8 @@ class _SimulationScreenState extends State<SimulationScreen> {
     _revenuConjointController.dispose();
     _loyerController.dispose();
     _codePostalController.dispose();
+    _pensionVerseeController.dispose();
+    _pensionRecueController.dispose();
     for (final c in _autresRevenusControllers.values) {
       c.dispose();
     }
@@ -112,7 +137,19 @@ class _SimulationScreenState extends State<SimulationScreen> {
 
   String? _validateCurrentStep() {
     switch (_currentStep) {
-      case 0: // Famille — toujours valide (défauts OK)
+      case 0: // Famille
+        if (_versePension) {
+          final montant = double.tryParse(_pensionVerseeController.text.replaceAll(',', '.')) ?? 0;
+          if (montant <= 0) {
+            return 'Indiquez le montant de la pension alimentaire versée.';
+          }
+        }
+        if (_recoitPension) {
+          final montant = double.tryParse(_pensionRecueController.text.replaceAll(',', '.')) ?? 0;
+          if (montant <= 0) {
+            return 'Indiquez le montant de la pension alimentaire reçue.';
+          }
+        }
         return null;
       case 1: // Revenus
         if (_sourceRevenuDemandeur != SourceRevenuActivite.aucun) {
@@ -182,6 +219,18 @@ class _SimulationScreenState extends State<SimulationScreen> {
       }
     }
 
+    // Pension alimentaire reçue (déclarée en Step 1 pour divorcé/séparé)
+    if (_recoitPension) {
+      final montantRecue = double.tryParse(
+              _pensionRecueController.text.replaceAll(',', '.')) ?? 0;
+      if (montantRecue > 0) {
+        autresRevenus.add(AutreRevenu(
+          type: TypeAutreRevenu.pensionAlimentaire,
+          montantMensuel: montantRecue,
+        ));
+      }
+    }
+
     // Construire les montants perçus
     final montantPercu = <String, double>{};
     for (final entry in _percuActifs.entries) {
@@ -199,10 +248,9 @@ class _SimulationScreenState extends State<SimulationScreen> {
     }
 
     final situation = Situation(
-      situationFamiliale: _situationFamiliale,
+      statutConjugal: _statutConjugal,
       nombreEnfants: _nombreEnfants,
       agesEnfants: _agesEnfants,
-      parentIsole: _parentIsole,
       sourceRevenuDemandeur: _sourceRevenuDemandeur,
       revenuActiviteDemandeur:
           double.tryParse(_revenuDemandeurController.text.replaceAll(',', '.')) ?? 0,
@@ -210,10 +258,15 @@ class _SimulationScreenState extends State<SimulationScreen> {
       revenuActiviteConjoint:
           double.tryParse(_revenuConjointController.text.replaceAll(',', '.')) ?? 0,
       autresRevenus: autresRevenus,
+      pensionAlimentaireVersee: _versePension ? (double.tryParse(_pensionVerseeController.text.replaceAll(',', '.')) ?? 0) : 0,
+      pensionAlimentaireNonPercue: _pensionNonPercue,
       zoneLogement: _zoneLogement,
       loyerMensuel: double.tryParse(_loyerController.text.replaceAll(',', '.')) ?? 0,
       statutLogement: _statutLogement,
+      logementConventionne: _logementConventionne,
       tauxHandicap: _aHandicap ? _tauxHandicap : null,
+      situationVie: _situationVie,
+      besoinTiercePersonne: _besoinTiercePersonne,
       modeGarde: _modeGarde,
       congeParental: _congeParental,
       gardeAlternee: _gardeAlternee,
@@ -306,14 +359,14 @@ class _SimulationScreenState extends State<SimulationScreen> {
               style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 24),
 
-          // Situation
-          _buildSectionTitle('Vous êtes :'),
+          // Statut conjugal
+          _buildSectionTitle('Votre statut :'),
           const SizedBox(height: 8),
-          _buildRadioList<SituationFamiliale>(
-            items: SituationFamiliale.values,
-            value: _situationFamiliale,
-            labelBuilder: (v) => v == SituationFamiliale.seul ? 'Seul(e)' : 'En couple',
-            onChanged: (v) => setState(() => _situationFamiliale = v),
+          _buildRadioList<StatutConjugal>(
+            items: StatutConjugal.values,
+            value: _statutConjugal,
+            labelBuilder: (v) => v.label,
+            onChanged: (v) => setState(() => _statutConjugal = v),
           ),
           const SizedBox(height: 24),
 
@@ -351,15 +404,57 @@ class _SimulationScreenState extends State<SimulationScreen> {
             )),
           ],
 
-          // Parent isolé
-          if (_situationFamiliale == SituationFamiliale.seul && _nombreEnfants > 0) ...[
-            const SizedBox(height: 16),
+          // Pension alimentaire (divorcé / séparé)
+          if ([StatutConjugal.divorce, StatutConjugal.separe].contains(_statutConjugal)) ...[
+            const SizedBox(height: 24),
+            _buildSectionTitle('Pension alimentaire'),
+            const SizedBox(height: 8),
             _buildCheckTile(
-              'Parent isolé',
-              'Vous élevez seul(e) vos enfants (majoration RSA)',
-              _parentIsole,
-              (v) => setState(() => _parentIsole = v),
+              'Je verse une pension alimentaire',
+              'Montant que vous payez chaque mois à votre ex-conjoint(e)',
+              _versePension,
+              (v) => setState(() => _versePension = v),
             ),
+            if (_versePension) ...[
+              const SizedBox(height: 8),
+              _buildMoneyField(
+                'Montant mensuel versé',
+                _pensionVerseeController,
+                hint: 'ex : 350',
+              ),
+            ],
+            const SizedBox(height: 8),
+            _buildCheckTile(
+              'Je reçois une pension alimentaire',
+              'Montant versé par votre ex-conjoint(e)',
+              _recoitPension,
+              (v) => setState(() => _recoitPension = v),
+            ),
+            if (_recoitPension) ...[
+              const SizedBox(height: 8),
+              _buildMoneyField(
+                'Montant mensuel reçu',
+                _pensionRecueController,
+                hint: 'ex : 350',
+              ),
+            ],
+            if (_nombreEnfants > 0 && !_recoitPension) ...[
+              const SizedBox(height: 8),
+              _buildCheckTile(
+                'Je ne reçois pas la pension qui m\'est due',
+                'L\'autre parent devrait verser une pension mais ne la verse pas',
+                _pensionNonPercue,
+                (v) => setState(() => _pensionNonPercue = v),
+              ),
+              if (_pensionNonPercue)
+                _buildInfoBox('Vous pouvez avoir droit à l\'ASF (Allocation de Soutien Familial) : jusqu\'à 164,96€/mois par enfant.'),
+            ],
+          ],
+
+          // Veuf(ve) — info pension de réversion
+          if (_statutConjugal == StatutConjugal.veuf) ...[
+            const SizedBox(height: 16),
+            _buildInfoBox('Vous pouvez déclarer une pension de réversion dans la section "Autres revenus" (étape suivante).'),
           ],
 
           // Mode de garde (si enfant < 6 ans présent ou inconnu)
@@ -395,7 +490,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
               },
               onChanged: (v) => setState(() => _congeParental = v),
             ),
-            if (_situationFamiliale == SituationFamiliale.couple) ...[
+            if ([StatutConjugal.divorce, StatutConjugal.separe].contains(_statutConjugal) && _nombreEnfants > 0) ...[
               const SizedBox(height: 12),
               _buildCheckTile(
                 'Garde alternée',
@@ -419,6 +514,12 @@ class _SimulationScreenState extends State<SimulationScreen> {
           ),
           if (_aHandicap) ...[
             const SizedBox(height: 12),
+            _buildInfoBox(
+              'Le taux d\'incapacité est une donnée de santé protégée (RGPD Art. 9). '
+              'En cochant cette case, vous consentez à son utilisation pour le calcul de vos droits. '
+              'Cette donnée reste sur votre appareil et n\'est jamais transmise.',
+            ),
+            const SizedBox(height: 12),
             _buildSectionTitle('Taux d\'incapacité :'),
             const SizedBox(height: 8),
             _buildRadioList<int>(
@@ -436,6 +537,26 @@ class _SimulationScreenState extends State<SimulationScreen> {
               _percevaitAAH,
               (v) => setState(() => _percevaitAAH = v),
             ),
+            if (_tauxHandicap >= 80) ...[
+              const SizedBox(height: 16),
+              _buildSectionTitle('Votre situation de vie'),
+              const SizedBox(height: 8),
+              _buildRadioList<SituationVie>(
+                items: SituationVie.values,
+                value: _situationVie,
+                labelBuilder: (v) => v.label,
+                onChanged: (v) => setState(() => _situationVie = v),
+              ),
+              if (_situationVie == SituationVie.autonome) ...[
+                const SizedBox(height: 8),
+                _buildCheckTile(
+                  'Besoin d\'une aide humaine au quotidien',
+                  'Tierce personne pour les actes essentiels',
+                  _besoinTiercePersonne,
+                  (v) => setState(() => _besoinTiercePersonne = v),
+                ),
+              ],
+            ],
           ],
         ],
       ),
@@ -457,6 +578,12 @@ class _SimulationScreenState extends State<SimulationScreen> {
           const SizedBox(height: 4),
           Text('Montants nets, après impôts',
               style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 16),
+          _buildInfoBox(
+            'Important : la CAF calcule généralement vos droits sur les revenus de l\'année N-2 '
+            '(déclarés aux impôts). Les montants saisis ici sont vos revenus actuels — '
+            'un écart avec les versements CAF peut être normal.',
+          ),
           const SizedBox(height: 24),
 
           // Revenu d'activité demandeur
@@ -475,7 +602,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
           ],
 
           // Revenu conjoint
-          if (_situationFamiliale == SituationFamiliale.couple) ...[
+          if (_isCouple) ...[
             const SizedBox(height: 24),
             _buildSectionTitle('Source de revenus du conjoint :'),
             const SizedBox(height: 8),
@@ -515,6 +642,11 @@ class _SimulationScreenState extends State<SimulationScreen> {
   /// Filtre les autres revenus selon le contexte déjà saisi
   List<TypeAutreRevenu> _filteredAutresRevenus() {
     return TypeAutreRevenu.values.where((type) {
+      // Pension alimentaire reçue : déjà déclarée en Step 1 pour divorcé/séparé
+      if (type == TypeAutreRevenu.pensionAlimentaire && _recoitPension) {
+        return false;
+      }
+
       // Pension d'invalidité : nécessite un historique d'emploi
       // Ne pas montrer si aucun revenu d'activité sélectionné
       if ((type == TypeAutreRevenu.pensionInvaliditeCat1 ||
@@ -680,6 +812,16 @@ class _SimulationScreenState extends State<SimulationScreen> {
               ],
             ),
           ),
+
+          if (_statutLogement == StatutLogement.locataire) ...[
+            const SizedBox(height: 16),
+            _buildCheckTile(
+              'Logement conventionné CAF',
+              'HLM ou convention avec la CAF. Si vous ne savez pas, laissez coché.',
+              _logementConventionne,
+              (v) => setState(() => _logementConventionne = v),
+            ),
+          ],
         ],
       ),
     );
@@ -706,8 +848,15 @@ class _SimulationScreenState extends State<SimulationScreen> {
           // AAH : si handicap coché en étape 1, l'app la calcule — pas besoin de la saisir ici
           // AF : si < 2 enfants, pas éligible
           ..._percuActifs.entries.where((entry) {
-            if (entry.key == 'aah' && _aHandicap) return false; // calculée auto
-            if (entry.key == 'af' && _nombreEnfants < 2) return false; // pas éligible
+            if (entry.key == 'aah' && _aHandicap) return false;
+            if (entry.key == 'af' && _nombreEnfants < 2) return false;
+            if (entry.key == 'cmg' && !(_agesEnfants.any((a) => a < 6) && _modeGarde != ModeGarde.aucun)) return false;
+            if (entry.key == 'paje' && !_agesEnfants.any((a) => a < 3)) return false;
+            if (entry.key == 'cf' && !(_nombreEnfants >= 3 && _agesEnfants.any((a) => a >= 3 && a <= 21))) return false;
+            if (entry.key == 'prepare' && _congeParental == CongeParental.aucun) return false;
+            if (entry.key == 'ars' && !_agesEnfants.any((a) => a >= 6 && a <= 18)) return false;
+            if (entry.key == 'mva' && !(_aHandicap && _tauxHandicap >= 80)) return false;
+            if (entry.key == 'asf' && !(!_isCouple && _nombreEnfants > 0)) return false;
             return true;
           }).map((entry) {
             final aide = entry.key;

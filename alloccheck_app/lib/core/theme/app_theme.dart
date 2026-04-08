@@ -29,6 +29,8 @@ class AppTheme {
     'cf': Color(0xFFEA580C),
     'prepare': Color(0xFF7C3AED),
     'ars': Color(0xFFDC2626),
+    'mva': Color(0xFF6D28D9),
+    'asf': Color(0xFFEC4899),
   };
 
   static const Map<String, String> aideLabels = {
@@ -42,6 +44,8 @@ class AppTheme {
     'cf': 'Complément familial',
     'prepare': 'PreParE',
     'ars': 'ARS (rentrée scolaire)',
+    'mva': 'MVA (Vie Autonome)',
+    'asf': 'ASF (Soutien Familial)',
   };
 
   static const Map<String, IconData> aideIcons = {
@@ -55,6 +59,8 @@ class AppTheme {
     'cf': Icons.people,
     'prepare': Icons.self_improvement,
     'ars': Icons.school,
+    'mva': Icons.home_work,
+    'asf': Icons.family_restroom,
   };
 
   static ThemeData get lightTheme {

@@ -1,55 +1,92 @@
 # SAVE — AllocCheck
 
-> Checkpoint automatique du 2026-04-06
+> Checkpoint automatique du 2026-04-07
 
 ---
 
 ## Contexte de la session
 
-Session de fix PDF : implémentation du téléchargement rapport PDF (qui était un TODO), correction de la mise en page du courrier PDF (structure de lettre correcte), et fix du téléchargement courrier (data URL base64).
+Audit expert approfondi de TOUS les calculs du moteur de simulation. Résultat : 8 calculs sur 12 sont fondamentalement faux. Réécriture complète en cours, ordre d'impact.
 
 ---
 
 ## Ce qui a été fait ✅
 
-- **Courrier PDF — téléchargement** : remplacé `Printing.sharePdf()` par download via data URL base64 + `<a download>` (dart:js_interop, `_jsCreateElement`) — fonctionne directement dans Chrome
-- **Courrier PDF — mise en page** : refactorisé `_exportPdf()` pour découper par blocs (`\n\n`) et appliquer une mise en forme structurée : expéditeur à gauche, destinataire à droite, date à droite, objet en gras, corps avec espacement inter-paragraphes, signature en bas
-- **Rapport PDF** : implémenté `_generateRapportPdf()` dans `results_screen.dart` — en-tête AllocCheck, résumé (droits, écart en rouge), tableau par aide, suggestions, disclaimer
-- **Rapport PDF — bouton câblé** : le bouton "Télécharger le rapport PDF" (qui était un TODO vide) est maintenant fonctionnel avec spinner de chargement
-- **Déploiement** : 2 builds web + 2 déploiements Netlify réussis sur `alloccheck.flowforges.fr`
+- **APL réécrit** : formule officielle APL = L + C - PP - 5€, avec TF+TL, R0, P0=max(8.5%(L+C), 39.56), plafonds monoparentaux corrigés, seuil 0€ (pas 15€), charges par PAC
+- **Bug TL corrigé** : RL en décimal (0-1) au lieu de pourcentage (0-100)
+- **4 audits expert lancés et terminés** : RSA, Prime, AF/AAH, Famille (PAJE/CF/PreParE/ARS/CMG)
+- **Audit APL expert** : déjà terminé et corrections appliquées
+- **Pages légales créées** : politique confidentialité, mentions légales, CGU, consentement handicap, disclaimer N-2
+- **Courrier multi-sélection** : checkboxes au lieu de radios, "Tout sélectionner"
+- **Section "Aides non réclamées"** : proéminente dans résultats + teaser gratuit
+- **MVA/ASF en suggestions** quand conditions presque remplies
+- **Garde alternée** corrigée (divorcés/séparés), Step 4 complet (12 aides), validation pension
+- **@JS exports conditionnels** : compilation mobile débloquée
+- **Site FlowForges** : AllocCheck ajouté homepage + landing (non poussé)
+- **Crédits Netlify épuisés** — plus de déploiement possible pour l'instant
 
 ## Ce qui est en cours ⏳
 
-Aucun
+- **Réécriture moteur de calcul** — 8 calculs à corriger selon les rapports expert. Ordre : AAH → RSA → Prime → AF → CF/PreParE/PAJE → CMG
 
 ## Ce qui est bloqué 🔴
 
-- **Flux Stripe retour** : à re-tester — token détecté ✓, save synchrone ✓, mais la restauration auto de la situation après paiement n'a pas été confirmée avec les dernières versions
-- **Mise en page courrier PDF** : améliorée mais pas testée visuellement par l'utilisateur — peut nécessiter ajustements (marges, tailles)
+- **Déploiement Netlify** : crédits épuisés. Options : attendre renouvellement mensuel ou migrer vers GitHub Pages
 
 ## Prochaines étapes 🎯
 
-1. **Tester le rapport PDF** : ouvrir `alloccheck.flowforges.fr`, faire une simulation, débloquer, cliquer "Télécharger le rapport PDF" → vérifier le rendu
-2. **Tester le courrier PDF** : générer un courrier → "Exporter PDF" → vérifier la mise en page (structure lettre correcte)
-3. **Radio deprecated** : migrer 13 warnings `RadioListTile` → `RadioGroup` (Flutter 3.41+) dans `letter_screen.dart` + `simulation_screen.dart`
-4. **Build iOS** : bundle ID, icône app, `ITSAppUsesNonExemptEncryption` dans Info.plist, Xcode Archive → TestFlight
-5. **Simulateur "et si..."** : slider revenus → recalcul live (plan mode requis)
+1. **AAH** : implémenter abattement revenus d'activité 80%/40% (art. R821-4 CSS). Impact : -539€/mois d'erreur actuelle pour AAH + travail partiel
+2. **RSA** : ajouter bonification 62% des revenus d'activité. Actuellement 100% déduit au lieu de 38%
+3. **Prime d'activité** : ajouter forfait logement + majoration parent isolé + retirer déduction pension versée
+4. **AF** : corriger plafonds (79 980 / 106 604€), montants 3+ enfants (349.06€), majoration 18+ (76.51€)
+5. **CF** : corriger montants (198.16/297.27€) + vrais plafonds variables (couple 1rev/2rev/isolé × nb enfants)
+6. **PreParE** : corriger montants (459.69/297.17€) + ajouter 3e taux (171.42€) + majorée (745.45€)
+7. **PAJE** : corriger plafonds (vrais barèmes couple 1rev/2rev/isolé)
+8. **CMG** : réécriture complète (réforme sept 2025 — calcul à l'heure, taux d'effort)
+9. Résoudre hébergement (Netlify vs GitHub Pages)
+10. Deploy final UNIQUE quand tout validé
 
 ## Notes importantes 📝
 
-- Déploiement Netlify : `netlify deploy --prod --dir build/web --site 57e6b9f7-bb82-4092-864a-4070d814dfcf`
-- Les déclarations JS interop (`@JS`) doivent être AVANT les imports `package:` → non, elles doivent venir APRÈS tous les imports (directive_after_declaration sinon)
-- `results_screen.dart` : les déclarations `@JS` ont été nommées `_jsCreateElementResult` + extension `_JSObjectResult` pour éviter les conflits avec `letter_screen.dart`
-- Token paywall : `AC2026UNLOCK` — hardcodé JS Flutter Web (acceptable MVP 2,99€)
-- Stripe URL : `https://buy.stripe.com/6oU3cu4YK4b5etBffu7EQ00`
-- Netlify : projet `whimsical-macaron-ed8c34` / site ID `57e6b9f7-bb82-4092-864a-4070d814dfcf`
+- **RÈGLE DEPLOY** : UN SEUL deploy par session, jamais prématuré. Tout vérifier localement d'abord.
+- Rapports expert dans `docs/` : EXPERT_APL_AUDIT.md, EXPERT_RSA_AUDIT.md, EXPERT_PRIME_AUDIT.md, EXPERT_AF_AAH_AUDIT.md, EXPERT_FAMILLE_AUDIT.md
+- Chaque rapport contient le code Dart de correction recommandé
+- APL vérifié avec l'exemple officiel : seul Z2 0rev → 306.37€ (exact), AAH Z3 470€ → 288.15€ (exact)
+- AAH avant revalorisation avril 2026 = 1 033.32€ (×1.008 = 1 041.59€)
+- Apify INTERDIT (feedback mémorisé)
+- FlowSocial pour réseaux sociaux (pas encore lancé)
+- Site FlowForges : modifications locales non poussées
+
+### Erreurs par calcul (résumé audits)
+- **AAH** : abattement 80%/40% absent, distinction RSDAE 50-79% absente
+- **RSA** : bonification 62% absente, 2 barèmes forfait logement, coefficient isolé 0.42804
+- **Prime** : forfait logement absent, majoration isolé absente, pension versée déduite à tort
+- **AF** : plafonds obsolètes (74650→79980), montants 3enf/supp/18+ légèrement faux
+- **CF** : montants -25%, plafonds inventés (fixes vs variables)
+- **PreParE** : montants faux, 3e taux absent, majorée absente
+- **PAJE** : plafonds faux (ne correspondent à rien d'officiel)
+- **CMG** : système entier obsolète (réforme sept 2025)
+- **ARS** : CORRECT (seul calcul juste)
+- **APL** : CORRIGÉ (formule TF+TL officielle)
+- **MVA** : OK (mineur : condition complément pension)
+- **ASF** : OK (mineur : taux orphelin total manquant)
 
 ---
 
 ## Fichiers modifiés lors de cette session
 
-- `lib/features/letter/screens/letter_screen.dart` — imports réorganisés, `_exportPdf()` refactorisé (bloc-based layout)
-- `lib/features/results/screens/results_screen.dart` — imports PDF ajoutés, JS interop, `_generateRapportPdf()`, `_getAideMontant()`, `_pdfRow()`, `_pdfCell()`, bouton câblé
+- `lib/core/services/calcul_local_service.dart` — APL réécrit (TF+TL+R0+P0), barèmes corrigés, MVA condition APL>0, suggestions MVA/ASF, disclaimer N-2
+- `lib/features/letter/screens/letter_screen.dart` — multi-sélection courrier, web_download_bridge
+- `lib/features/results/screens/results_screen.dart` — section aides non réclamées, teaser gratuit, web_download_bridge
+- `lib/features/simulation/screens/simulation_screen.dart` — garde alternée, Step 4 complet, validation pension, consentement handicap, disclaimer N-2
+- `lib/features/legal/screens/privacy_screen.dart` — NOUVEAU
+- `lib/features/legal/screens/legal_mentions_screen.dart` — NOUVEAU
+- `lib/features/legal/screens/terms_screen.dart` — NOUVEAU
+- `lib/core/utils/web_download.dart` + stub + bridge — NOUVEAU
+- `lib/core/utils/web_payment.dart` + stub + bridge — NOUVEAU
+- `lib/main.dart` — routes légales + liens
+- `docs/EXPERT_*.md` — 5 rapports d'audit expert
+- `test/calcul_test.dart` — migration statutConjugal
 
 ---
 

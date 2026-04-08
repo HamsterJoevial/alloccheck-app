@@ -10,6 +10,8 @@ class DroitsResult {
   final double cf;
   final double prepare;
   final double ars;
+  final double mva;
+  final double asf;
   final double total;
   final Map<String, String> details;
 
@@ -24,6 +26,8 @@ class DroitsResult {
     this.cf = 0,
     this.prepare = 0,
     this.ars = 0,
+    this.mva = 0,
+    this.asf = 0,
     required this.total,
     required this.details,
   });
@@ -36,6 +40,8 @@ class DroitsResult {
       af: (json['af'] as num?)?.toDouble() ?? 0,
       aah: (json['aah'] as num?)?.toDouble() ?? 0,
       ars: (json['ars'] as num?)?.toDouble() ?? 0,
+      mva: (json['mva'] as num?)?.toDouble() ?? 0,
+      asf: (json['asf'] as num?)?.toDouble() ?? 0,
       total: (json['total'] as num?)?.toDouble() ?? 0,
       details: (json['details'] as Map<String, dynamic>?)
               ?.map((k, v) => MapEntry(k, v.toString())) ??

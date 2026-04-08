@@ -1,10 +1,9 @@
 // Modèle de situation personnelle pour le calcul des droits CAF
 
 class Situation {
-  final SituationFamiliale situationFamiliale;
+  final StatutConjugal statutConjugal;
   final int nombreEnfants;
   final List<int> agesEnfants;
-  final bool parentIsole;
 
   // Revenus d'activité
   final SourceRevenuActivite? sourceRevenuDemandeur;
@@ -15,13 +14,21 @@ class Situation {
   // Autres revenus (checklist)
   final List<AutreRevenu> autresRevenus;
 
+  // Pension alimentaire versée (déductible des ressources — Art. R262-6 CASF)
+  final double pensionAlimentaireVersee;
+  // Pension alimentaire non versée par l'autre parent (ouvre droit ASF)
+  final bool pensionAlimentaireNonPercue;
+
   // Logement
   final ZoneLogement zoneLogement;
   final double loyerMensuel;
   final StatutLogement statutLogement;
+  final bool? logementConventionne; // null=inconnu, true=APL, false=ALS/ALF
 
   // Handicap
   final int? tauxHandicap;
+  final SituationVie situationVie;
+  final bool besoinTiercePersonne;
 
   // Garde et congé parental (CMG, PAJE, PreParE)
   final ModeGarde modeGarde;
@@ -32,24 +39,41 @@ class Situation {
   final Map<String, double> montantPercu;
 
   const Situation({
-    required this.situationFamiliale,
+    required this.statutConjugal,
     required this.nombreEnfants,
     this.agesEnfants = const [],
-    this.parentIsole = false,
     this.sourceRevenuDemandeur,
     required this.revenuActiviteDemandeur,
     this.sourceRevenuConjoint,
     this.revenuActiviteConjoint = 0,
     this.autresRevenus = const [],
+    this.pensionAlimentaireVersee = 0,
+    this.pensionAlimentaireNonPercue = false,
     required this.zoneLogement,
     required this.loyerMensuel,
     required this.statutLogement,
+    this.logementConventionne,
     this.tauxHandicap,
+    this.situationVie = SituationVie.autonome,
+    this.besoinTiercePersonne = false,
     this.modeGarde = ModeGarde.aucun,
     this.congeParental = CongeParental.aucun,
     this.gardeAlternee = false,
     this.montantPercu = const {},
   });
+
+  /// Dérivé du statut conjugal — rétrocompatibilité avec tous les calculs existants
+  SituationFamiliale get situationFamiliale {
+    if ([StatutConjugal.marie, StatutConjugal.pacse, StatutConjugal.concubin]
+        .contains(statutConjugal)) {
+      return SituationFamiliale.couple;
+    }
+    return SituationFamiliale.seul;
+  }
+
+  /// Dérivé automatiquement — plus de saisie manuelle
+  bool get parentIsole =>
+      situationFamiliale == SituationFamiliale.seul && nombreEnfants > 0;
 
   /// Total des autres revenus mensuels
   double get totalAutresRevenus =>
@@ -57,12 +81,14 @@ class Situation {
 
   Map<String, dynamic> toJson() => {
         'situation_familiale': situationFamiliale.value,
+        'statut_conjugal': statutConjugal.name,
         'nombre_enfants': nombreEnfants,
         'ages_enfants': agesEnfants,
         'parent_isole': parentIsole,
         'revenu_activite_demandeur': revenuActiviteDemandeur,
         'revenu_activite_conjoint': revenuActiviteConjoint,
         'autres_revenus': totalAutresRevenus,
+        'pension_alimentaire_versee': pensionAlimentaireVersee,
         'zone_logement': zoneLogement.value,
         'loyer_mensuel': loyerMensuel,
         'statut_logement': statutLogement.value,
@@ -72,10 +98,9 @@ class Situation {
 
   /// Sérialisation complète pour persistence localStorage (PaymentService)
   Map<String, dynamic> toJsonFull() => {
-        'sf': situationFamiliale.name,
+        'sc': statutConjugal.name,
         'ne': nombreEnfants,
         'ae': agesEnfants,
-        'pi': parentIsole,
         'srd': sourceRevenuDemandeur?.name,
         'rad': revenuActiviteDemandeur,
         'src': sourceRevenuConjoint?.name,
@@ -83,58 +108,105 @@ class Situation {
         'ar': autresRevenus
             .map((r) => {'t': r.type.name, 'm': r.montantMensuel})
             .toList(),
+        'pav': pensionAlimentaireVersee,
+        'panp': pensionAlimentaireNonPercue,
         'zl': zoneLogement.name,
         'lm': loyerMensuel,
         'sl': statutLogement.name,
+        'lc': logementConventionne,
         'th': tauxHandicap,
+        'sv': situationVie.name,
+        'btp': besoinTiercePersonne,
         'mg': modeGarde.name,
         'cp': congeParental.name,
         'ga': gardeAlternee,
         'mp': montantPercu,
       };
 
-  factory Situation.fromJson(Map<String, dynamic> j) => Situation(
-        situationFamiliale: SituationFamiliale.values
-            .firstWhere((e) => e.name == j['sf']),
-        nombreEnfants: j['ne'] as int,
-        agesEnfants: List<int>.from(j['ae'] ?? []),
-        parentIsole: j['pi'] as bool? ?? false,
-        sourceRevenuDemandeur: j['srd'] != null
-            ? SourceRevenuActivite.values
-                .firstWhere((e) => e.name == j['srd'])
-            : null,
-        revenuActiviteDemandeur: (j['rad'] as num).toDouble(),
-        sourceRevenuConjoint: j['src'] != null
-            ? SourceRevenuActivite.values
-                .firstWhere((e) => e.name == j['src'])
-            : null,
-        revenuActiviteConjoint: (j['rac'] as num? ?? 0).toDouble(),
-        autresRevenus: (j['ar'] as List<dynamic>? ?? []).map((r) {
-          final map = r as Map<String, dynamic>;
-          return AutreRevenu(
-            type: TypeAutreRevenu.values
-                .firstWhere((e) => e.name == map['t']),
-            montantMensuel: (map['m'] as num).toDouble(),
-          );
-        }).toList(),
-        zoneLogement:
-            ZoneLogement.values.firstWhere((e) => e.name == j['zl']),
-        loyerMensuel: (j['lm'] as num).toDouble(),
-        statutLogement:
-            StatutLogement.values.firstWhere((e) => e.name == j['sl']),
-        tauxHandicap: j['th'] as int?,
-        modeGarde: j['mg'] != null
-            ? ModeGarde.values.firstWhere((e) => e.name == j['mg'])
-            : ModeGarde.aucun,
-        congeParental: j['cp'] != null
-            ? CongeParental.values.firstWhere((e) => e.name == j['cp'])
-            : CongeParental.aucun,
-        gardeAlternee: j['ga'] as bool? ?? false,
-        montantPercu: j['mp'] != null
-            ? Map<String, double>.from((j['mp'] as Map)
-                .map((k, v) => MapEntry(k as String, (v as num).toDouble())))
-            : {},
-      );
+  factory Situation.fromJson(Map<String, dynamic> j) {
+    // Rétrocompatibilité : si 'sc' absent, dériver depuis l'ancien 'sf'
+    StatutConjugal sc;
+    if (j.containsKey('sc')) {
+      sc = StatutConjugal.values.firstWhere((e) => e.name == j['sc']);
+    } else if (j.containsKey('sf')) {
+      final sf = j['sf'] as String;
+      sc = sf == 'couple' ? StatutConjugal.concubin : StatutConjugal.celibataire;
+    } else {
+      sc = StatutConjugal.celibataire;
+    }
+
+    return Situation(
+      statutConjugal: sc,
+      nombreEnfants: j['ne'] as int,
+      agesEnfants: List<int>.from(j['ae'] ?? []),
+      sourceRevenuDemandeur: j['srd'] != null
+          ? SourceRevenuActivite.values
+              .firstWhere((e) => e.name == j['srd'])
+          : null,
+      revenuActiviteDemandeur: (j['rad'] as num).toDouble(),
+      sourceRevenuConjoint: j['src'] != null
+          ? SourceRevenuActivite.values
+              .firstWhere((e) => e.name == j['src'])
+          : null,
+      revenuActiviteConjoint: (j['rac'] as num? ?? 0).toDouble(),
+      autresRevenus: (j['ar'] as List<dynamic>? ?? []).map((r) {
+        final map = r as Map<String, dynamic>;
+        return AutreRevenu(
+          type: TypeAutreRevenu.values
+              .firstWhere((e) => e.name == map['t']),
+          montantMensuel: (map['m'] as num).toDouble(),
+        );
+      }).toList(),
+      pensionAlimentaireVersee: (j['pav'] as num? ?? 0).toDouble(),
+      pensionAlimentaireNonPercue: j['panp'] as bool? ?? false,
+      zoneLogement:
+          ZoneLogement.values.firstWhere((e) => e.name == j['zl']),
+      loyerMensuel: (j['lm'] as num).toDouble(),
+      statutLogement:
+          StatutLogement.values.firstWhere((e) => e.name == j['sl']),
+      logementConventionne: j['lc'] as bool?,
+      tauxHandicap: j['th'] as int?,
+      situationVie: j['sv'] != null
+          ? SituationVie.values.firstWhere((e) => e.name == j['sv'])
+          : SituationVie.autonome,
+      besoinTiercePersonne: j['btp'] as bool? ?? false,
+      modeGarde: j['mg'] != null
+          ? ModeGarde.values.firstWhere((e) => e.name == j['mg'])
+          : ModeGarde.aucun,
+      congeParental: j['cp'] != null
+          ? CongeParental.values.firstWhere((e) => e.name == j['cp'])
+          : CongeParental.aucun,
+      gardeAlternee: j['ga'] as bool? ?? false,
+      montantPercu: j['mp'] != null
+          ? Map<String, double>.from((j['mp'] as Map)
+              .map((k, v) => MapEntry(k as String, (v as num).toDouble())))
+          : {},
+    );
+  }
+}
+
+/// Statut conjugal détaillé — détermine les droits spécifiques
+enum StatutConjugal {
+  celibataire('Célibataire'),
+  marie('Marié(e)'),
+  pacse('Pacsé(e)'),
+  concubin('En concubinage'),
+  divorce('Divorcé(e)'),
+  separe('Séparé(e)'),
+  veuf('Veuf(ve)');
+
+  final String label;
+  const StatutConjugal(this.label);
+}
+
+/// Situation de vie — conditionne MVA/MTP pour les bénéficiaires AAH
+enum SituationVie {
+  autonome('Vie autonome (logement personnel)'),
+  institution('En institution (foyer, MAS, etc.)'),
+  chezParent('Hébergé(e) chez un parent/proche');
+
+  final String label;
+  const SituationVie(this.label);
 }
 
 enum SituationFamiliale {
@@ -201,15 +273,15 @@ enum TypeAutreRevenu {
     label: 'Allocation chômage (ARE)',
     description: 'Indemnité France Travail — montant sur votre notification',
     icon: '🏢',
-    montantFixe: null, // variable selon salaire précédent
+    montantFixe: null,
     saisieRequise: true,
   ),
   ass(
     label: 'ASS (Allocation de Solidarité Spécifique)',
-    description: '18,43\u20AC/jour — montant fixe national',
+    description: '19,48\u20AC/jour — montant fixe national (avril 2026)',
     icon: '📋',
-    montantFixe: 552.90, // 18.43 × 30 jours
-    saisieRequise: false, // MONTANT FIXE — pas de saisie
+    montantFixe: 584.40,
+    saisieRequise: false,
   ),
   pensionRetraite(
     label: 'Pension de retraite',
@@ -223,7 +295,7 @@ enum TypeAutreRevenu {
     description: '30% du salaire moyen des 10 meilleures années — max 1 099,80\u20AC/mois',
     icon: '🏥',
     montantFixe: null,
-    saisieRequise: true, // variable selon salaire, mais cadré par le max
+    saisieRequise: true,
   ),
   pensionInvaliditeCat2(
     label: 'Pension d\'invalidité — Catégorie 2',
@@ -271,7 +343,7 @@ enum TypeAutreRevenu {
     label: 'Bourse CROUS — Échelon 0 bis',
     description: '1 454\u20AC/an = 121\u20AC/mois — montant fixe national',
     icon: '🎓',
-    montantFixe: 121.17, // 1454/12
+    montantFixe: 121.17,
     saisieRequise: false,
   ),
   bourseEchelon1(
@@ -341,8 +413,8 @@ enum TypeAutreRevenu {
   final String label;
   final String description;
   final String icon;
-  final double? montantFixe; // null = montant variable, l'user doit saisir
-  final bool saisieRequise; // false = montant fixe connu, on coche et c'est tout
+  final double? montantFixe;
+  final bool saisieRequise;
   const TypeAutreRevenu({
     required this.label,
     required this.description,

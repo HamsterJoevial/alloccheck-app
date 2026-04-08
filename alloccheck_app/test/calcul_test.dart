@@ -9,7 +9,7 @@ void main() {
 
     test('AAH 80%+ sans revenus = 1041.59€, RSA = 0 (non cumulable)', () {
       final result = service.calculerDroits(Situation(
-        situationFamiliale: SituationFamiliale.seul,
+        statutConjugal: StatutConjugal.celibataire,
         nombreEnfants: 0,
         revenuActiviteDemandeur: 0,
         zoneLogement: ZoneLogement.zone3,
@@ -28,7 +28,7 @@ void main() {
 
     test('AAH déconjugalisation — revenus conjoint ignorés', () {
       final result = service.calculerDroits(Situation(
-        situationFamiliale: SituationFamiliale.couple,
+        statutConjugal: StatutConjugal.concubin,
         nombreEnfants: 0,
         revenuActiviteDemandeur: 0,
         revenuActiviteConjoint: 2000, // conjoint gagne 2000€ — ne doit PAS impacter l'AAH
@@ -44,7 +44,7 @@ void main() {
 
     test('RSA seul hébergé sans revenus SANS AAH = 651.69 - 77.58 = 574.11€', () {
       final result = service.calculerDroits(Situation(
-        situationFamiliale: SituationFamiliale.seul,
+        statutConjugal: StatutConjugal.celibataire,
         nombreEnfants: 0,
         revenuActiviteDemandeur: 0,
         zoneLogement: ZoneLogement.zone3,
@@ -59,7 +59,7 @@ void main() {
 
     test('RSA couple sans enfants sans revenus hébergés', () {
       final result = service.calculerDroits(Situation(
-        situationFamiliale: SituationFamiliale.couple,
+        statutConjugal: StatutConjugal.concubin,
         nombreEnfants: 0,
         revenuActiviteDemandeur: 0,
         zoneLogement: ZoneLogement.zone3,
@@ -73,7 +73,7 @@ void main() {
 
     test('Prime activité SMIC = bonification maximale', () {
       final result = service.calculerDroits(Situation(
-        situationFamiliale: SituationFamiliale.seul,
+        statutConjugal: StatutConjugal.celibataire,
         nombreEnfants: 0,
         revenuActiviteDemandeur: 1426.30, // SMIC net
         zoneLogement: ZoneLogement.zone2,
@@ -88,7 +88,7 @@ void main() {
 
     test('AF 2 enfants sans revenus = 153.01€', () {
       final result = service.calculerDroits(Situation(
-        situationFamiliale: SituationFamiliale.couple,
+        statutConjugal: StatutConjugal.concubin,
         nombreEnfants: 2,
         agesEnfants: [5, 8],
         revenuActiviteDemandeur: 0,
@@ -103,7 +103,7 @@ void main() {
     test('AF majoration 18+ (pas 14+) depuis mars 2026', () {
       // Enfant de 15 ans = PAS de majoration (ancien barème était 14+, nouveau = 18+)
       final result15 = service.calculerDroits(Situation(
-        situationFamiliale: SituationFamiliale.couple,
+        statutConjugal: StatutConjugal.concubin,
         nombreEnfants: 3,
         agesEnfants: [5, 10, 15],
         revenuActiviteDemandeur: 0,
@@ -114,7 +114,7 @@ void main() {
 
       // Enfant de 19 ans = majoration
       final result19 = service.calculerDroits(Situation(
-        situationFamiliale: SituationFamiliale.couple,
+        statutConjugal: StatutConjugal.concubin,
         nombreEnfants: 3,
         agesEnfants: [5, 10, 19],
         revenuActiviteDemandeur: 0,
@@ -124,12 +124,12 @@ void main() {
       ));
 
       // La différence doit être la majoration 18+
-      expect(result19.droits.af - result15.droits.af, closeTo(75.53, 0.01));
+      expect(result19.droits.af - result15.droits.af, closeTo(76.51, 0.01));
     });
 
     test('Sources légales présentes dans chaque détail', () {
       final result = service.calculerDroits(Situation(
-        situationFamiliale: SituationFamiliale.seul,
+        statutConjugal: StatutConjugal.celibataire,
         nombreEnfants: 0,
         revenuActiviteDemandeur: 0,
         zoneLogement: ZoneLogement.zone3,

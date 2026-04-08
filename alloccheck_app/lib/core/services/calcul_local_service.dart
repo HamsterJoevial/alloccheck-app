@@ -21,9 +21,10 @@ class CalculLocalService {
   static const double _rsaMajorationCouple = 0.5;
   static const double _rsaMajorationEnfant12 = 0.3;
   static const double _rsaMajorationEnfant3Plus = 0.4;
-  // Parent isolé : +128.57% base, +14.28% par enfant suppl.
-  static const double _rsaMajorationIsolementBase = 0.5; // = couple rate for parent isolé
-  static const double _rsaMajorationIsolementParEnfant = 0.4; // par enfant
+  // Parent isolé — RSA majoré (art. L262-9 CASF)
+  // = 128.412% du montant de base, +42.86% par enfant
+  static const double _rsaMajorationIsolementBase = 1.28412; // multiplicateur (pas addition)
+  static const double _rsaMajorationIsolementParEnfant = 0.42804; // par enfant (art. R262-4 CASF)
   // Forfait logement (déduit si hébergé ou APL)
   static const double _rsaForfaitLogement1 = 77.58; // 1 personne
   static const double _rsaForfaitLogement2 = 155.16; // 2 personnes
@@ -38,29 +39,74 @@ class CalculLocalService {
   static const double _primeMajorationEnfant12 = 0.3;
   static const double _primeMajorationEnfant3Plus = 0.4;
 
-  // --- APL (art. L841-1 CCH, barèmes 01/10/2025 gelés 2026) ---
-  // Loyers plafonds par zone et par nombre de personnes
-  static const Map<String, Map<int, double>> _aplLoyerPlafond = {
-    'zone_1': {1: 333.14, 2: 401.78, 3: 454.10, 0: 65.89}, // 0 = supplément par pers.
-    'zone_2': {1: 290.34, 2: 355.38, 3: 399.89, 0: 58.21},
-    'zone_3': {1: 272.12, 2: 329.88, 3: 369.88, 0: 53.01},
+  // --- APL (art. L841-1 CCH, arrêté 27/09/2019, barèmes 01/10/2025) ---
+  //
+  // Formule officielle : APL = L + C - PP - 5€
+  // PP = P0 + Tp × (R - R0)
+  // Tp = TF + TL
+  //
+  // Loyers plafonds par zone : seul / couple / 1 PAC / supplément par PAC
+  // Source : arrêté du 5 septembre 2025
+  static const Map<String, List<double>> _aplPlafonds = {
+    //           [seul,   couple, 1pac,   supp/pac]
+    'zone_1': [333.14, 401.78, 454.10, 65.89],
+    'zone_2': [290.34, 355.38, 399.89, 58.21],
+    'zone_3': [272.12, 329.88, 369.88, 53.01],
   };
-  static const double _aplChargesForfaitaires = 60.59; // montant unique 2026
-  static const double _aplParticipationBase = 37.87;
-  static const double _aplSeuilMinimum = 15.0; // en dessous = pas versé
+
+  // Forfait charges : 60.59€ base + 13.74€ par personne à charge
+  // Source : arrêté 5 sept 2025 (revalorisation +1.04% IRL)
+  static const double _aplChargesBase = 60.59;
+  static const double _aplChargesParPac = 13.74;
+
+  // P0 plancher = 39.56€ — mais P0 réel = max(8.5% × (L+C), 39.56)
+  // Source : art. D.823-17 CCH, art. 13 arrêté 27/09/2019
+  static const double _aplP0Plancher = 39.56;
+  static const double _aplP0Taux = 0.085; // 8.5%
+
+  // Déduction forfaitaire de 5€ (depuis oct. 2017, art. D.823-16 al.9 CCH)
+  static const double _aplDeduction = 5.0;
+
+  // TF — taux famille (fixe, non revalorisé — art. 14 arrêté 27/09/2019)
+  // Source : brochure ministérielle "Éléments de calcul" p.18 Tableau 6
+  static const List<double> _aplTF = [
+    0.0283,  // personne seule (0 pac)
+    0.0315,  // couple (0 pac)
+    0.0270,  // 1 pac
+    0.0238,  // 2 pac
+    0.0201,  // 3 pac
+    0.0185,  // 4 pac
+    0.0179,  // 5 pac
+    0.0173,  // 6 pac
+  ];
+  static const double _aplTFParPacSupp = -0.0006; // au-delà de 6 pac
+
+  // TL — taux loyer (progressif, basé sur RL = L / LR)
+  // LR = loyer plafond Zone II pour la même composition
+  // Source : art. 14 arrêté 27/09/2019
+  // Si RL < 45% : TL = 0
+  // Si 45% ≤ RL < 75% : TL = 0.45% × (RL - 45%)
+  // Si RL ≥ 75% : TL = 0.45% × 30% + 0.68% × (RL - 75%)
+
+  // R0 — seuil de ressources par taille du foyer
+  // Source : décret 2025-1401, arrêté 30/12/2024 (non revalorisé 2026)
+  static const Map<int, double> _aplR0 = {
+    1: 5235, 2: 7501, 3: 8947, 4: 9148,
+    5: 9498, 6: 9851, 7: 10202, 8: 10554,
+  };
+  static const double _aplR0ParPersonneSupp = 346.0;
 
   // --- ALLOCATIONS FAMILIALES (Instruction DSS/2B/2026/46, art. L512-1 CSS) ---
   // BMAF = 478.16€
-  static const double _afBase2Enfants = 153.01; // 31.95% BMAF
-  static const double _afBase3Enfants = 350.79; // 73.36% BMAF
-  static const double _afSupplementParEnfant = 197.77; // 41.41% BMAF
-  // ATTENTION : majoration âge = 18+ ans depuis 01/03/2026 (plus 14+)
-  static const double _afMajoration18Plus = 75.53; // tranche 1 max
-  // Plafonds de ressources (revenu net catégoriel N-2), revalorisés +1.8% au 01/01/2026
-  static const double _afPlafondTranche1_2enfants = 78565; // montant plein
-  static const double _afPlafondTranche2_2enfants = 104719; // montant divisé par 2
-  // Au-delà tranche 2 : montant divisé par 4
-  static const double _afSupplementPlafondParEnfant = 6105; // par enfant au-delà de 2
+  static const double _afBase2Enfants = 153.01; // 32% BMAF (art. D521-1 CSS)
+  static const double _afBase3Enfants = 349.06; // 73% BMAF
+  static const double _afSupplementParEnfant = 196.04; // 41% BMAF
+  // Majoration âge = 18+ ans depuis 01/03/2026 — 16% BMAF
+  static const double _afMajoration18Plus = 76.51;
+  // Plafonds 2026 (revenus N-2) — source aide-sociale.fr, art. D521-1 CSS
+  static const double _afPlafondBase1 = 79980; // tranche 1 (2 enfants)
+  static const double _afPlafondBase2 = 106604; // tranche 2 (2 enfants)
+  static const double _afMajorationPlafondParEnfant = 6664; // par enfant au-delà de 2
 
   // --- AAH (Décret n° 2026-229, art. L821-1 CSS) ---
   static const double _aahMontantMax = 1041.59;
@@ -85,25 +131,35 @@ class CalculLocalService {
     'garde_domicile':        [1846.0, 923.0, 461.0],
   };
 
-  // --- PAJE base (CAF.fr, barèmes 2026) ---
-  static const double _pajeTauxPlein = 185.54;
-  static const double _pajeTauxPartiel = 92.77;
-  // Plafonds annuels couple (1 enfant → +, index = nombreEnfants-1 capped)
-  static const List<double> _pajePlafondCouple = [43681, 52958, 62234];
-  static const double _pajePlafondCoupleParEnfantSupp = 9277;
-  // Plafonds annuels isolé
-  static const List<double> _pajePlafondIsole = [34681, 43957, 53234];
-  static const double _pajePlafondIsoleParEnfantSupp = 9277;
+  // --- PAJE base (art. L531-2 CSS, arrêté 18/12/2025, barèmes avril 2026) ---
+  static const double _pajeTauxPlein = 198.16;
+  static const double _pajeTauxPartiel = 99.09;
+  // Plafonds taux plein — couple 1 revenu (conjoint < 6 306€/an N-2)
+  static const double _pajePlafondPlein1Rev1Enf = 31066;
+  static const double _pajePlafondPleinParEnfSupp = 6213;
+  // Plafonds taux plein — couple 2 revenus / parent isolé
+  static const double _pajePlafondPlein2Rev1Enf = 41055;
+  // Plafonds taux partiel — couple 1 revenu
+  static const double _pajePlafondPartiel1Rev1Enf = 37118;
+  // Plafonds taux partiel — couple 2 revenus / parent isolé
+  static const double _pajePlafondPartiel2Rev1Enf = 49054;
+  // Seuil "2 revenus" : conjoint doit avoir revenu ≥ 6 306€/an
+  static const double _pajeSeuilDeuxRevenus = 6306;
 
   // --- Complément Familial (CAF.fr, barèmes 2026) ---
-  static const double _cfMontantMajore = 260.57;  // revenus ≤ 25 000€/an
-  static const double _cfMontantNormal = 173.71;  // revenus ≤ 43 000€/an
-  static const double _cfSeuilMajore = 25000.0;
-  static const double _cfSeuilNormal = 43000.0;
+  // CF — montants avril 2026 (source aide-sociale.fr, EXPERT_FAMILLE_AUDIT)
+  static const double _cfMontantMajore = 297.27;  // revenus ≤ seuil majoré
+  static const double _cfMontantNormal = 198.16;  // revenus ≤ seuil normal
+  // Plafonds 2026 pour 3 enfants (couple 1 revenu) — source quelles-aides.fr
+  static const double _cfSeuilMajore = 24459.0;   // couple 1 rev, 3 enfants
+  static const double _cfSeuilNormal = 44735.0;   // couple 1 rev, 3 enfants
+  static const double _cfMajorationPlafondParEnfant = 5765.0; // par enfant au-delà de 3
 
   // --- PreParE (CAF.fr, barèmes 2026) ---
-  static const double _prepareTauxPlein = 396.01;
-  static const double _prepareTauxDemi = 256.01;
+  // PreParE — montants avril 2026 (source EXPERT_FAMILLE_AUDIT)
+  static const double _prepareTauxPlein = 459.69;  // cessation totale d'activité
+  static const double _prepareTauxDemi = 297.17;   // temps partiel ≤ 50%
+  static const double _prepareTauxPartiel = 171.42; // temps partiel 50-80%
 
   static const Map<String, String> sourcesLegales = {
     'rsa': 'Art. L262-2 CASF — Décret n° 2026-220 du 30/03/2026',
@@ -115,7 +171,28 @@ class CalculLocalService {
     'paje': 'Art. L531-2 CSS — CAF.fr barèmes 2026',
     'cf': 'Art. L522-1 CSS — CAF.fr barèmes 2026',
     'prepare': 'Art. L531-4 CSS — CAF.fr barèmes 2026',
+    'mva': 'Art. L821-1-2 CSS — Décret n° 2026-229 du 30/03/2026',
+
+    'asf': 'Art. L523-1 CSS — Barèmes 01/04/2026',
+    'als': 'Art. L831-1 CSS — Arrêté 5 sept. 2025 maintenu 2026',
+    'alf': 'Art. L542-1 CSS — Arrêté 5 sept. 2025 maintenu 2026',
   };
+
+  // --- MVA (Art. L821-1-2 CSS) ---
+  static const double _mvaMontant = 104.77;
+
+  // NOTE : La Majoration pour Tierce Personne (MTP) liée à l'AAH (Art. L821-1-1 CSS)
+  // a été supprimée pour les nouveaux bénéficiaires depuis décembre 2019.
+  // Les personnes ayant besoin d'aide humaine relèvent de la PCH (MDPH, hors CAF).
+  // → MTP retirée du moteur. Seule la MVA subsiste côté CAF.
+
+  // --- ASF (Art. L523-1 CSS) ---
+  static const double _asfMontantParEnfant = 200.78;
+
+  // --- ALS/ALF (Art. L831-1 et L542-1 CSS — arrêté 5 sept 2025) ---
+  // Depuis l'harmonisation de 2018, ALS et APL partagent les mêmes plafonds de loyer.
+  // Source : arrêté du 5 septembre 2025, CAF.fr barèmes aides au logement.
+  // → On réutilise _aplPlafonds directement dans _calculerALSALF
 
   // ============================================================
   // CALCUL PRINCIPAL
@@ -129,16 +206,22 @@ class CalculLocalService {
     // 4. Prime d'activité (AAH NON comptée comme ressource — art. R844-5 CSS)
     // 5. AF (indépendant)
 
+    // 1. AAH (indépendant)
     final aah = _calculerAAH(situation);
-    final apl = _calculerAPL(situation);
+    // 2. Aide au logement : APL si conventionné (défaut), ALS/ALF sinon
+    final apl = _calculerAideLogement(situation);
+    // 3. MVA (dépend de AAH + aide logement — nécessite aide au logement)
+    final mva = _calculerMVA(situation, aahMontant: aah.$1, aplMontant: apl.$1);
+    // 4. ASF (indépendant — parent isolé + pension non versée)
+    final asf = _calculerASF(situation);
+    // 5. AF (indépendant)
     final af = _calculerAF(situation);
-
-    // RSA : l'AAH est une ressource (art. R262-11 CASF)
+    // 6. RSA (AAH = ressource, pension versée déduite — art. R262-11 CASF)
     final rsa = _calculerRSA(situation, aahMensuel: aah.$1, percoitApl: apl.$1 > 0);
+    // 7. Prime d'activité (AAH NON ressource, pension versée déduite)
+    final prime = _calculerPrimeActivite(situation, percoitApl: apl.$1 > 0);
 
-    final prime = _calculerPrimeActivite(situation);
-
-    // Aides famille (portées depuis BudgetBébé)
+    // Aides famille
     final cmg = _calculerCMG(situation);
     final paje = _calculerPAJE(situation);
     final cf = _calculerCF(situation);
@@ -151,18 +234,23 @@ class CalculLocalService {
       primeActivite: prime.$1,
       af: af.$1,
       aah: aah.$1,
+      mva: mva.$1,
+      asf: asf.$1,
       cmg: cmg.$1,
       paje: paje.$1,
       cf: cf.$1,
       prepare: prepare.$1,
       ars: ars.$1,
-      total: rsa.$1 + apl.$1 + prime.$1 + af.$1 + aah.$1 + cmg.$1 + paje.$1 + cf.$1 + prepare.$1 + ars.$1,
+      total: rsa.$1 + apl.$1 + prime.$1 + af.$1 + aah.$1 + mva.$1 + asf.$1 + cmg.$1 + paje.$1 + cf.$1 + prepare.$1 + ars.$1,
       details: {
         'rsa': rsa.$2,
         'apl': apl.$2,
         'prime_activite': prime.$2,
         'af': af.$2,
         'aah': aah.$2,
+        'mva': mva.$2,
+
+        'asf': asf.$2,
         'cmg': cmg.$2,
         'paje': paje.$2,
         'cf': cf.$2,
@@ -181,7 +269,9 @@ class CalculLocalService {
       ecart: ecart,
       disclaimer: 'Calcul basé sur les barèmes officiels au 1er avril 2026 '
           '(Décrets n° 2026-220 à 229 du 30/03/2026, JO 31/03/2026). '
-          'Ce calcul est indicatif et peut différer du calcul officiel de la CAF.',
+          'Ce calcul est indicatif et peut différer du calcul officiel de la CAF. '
+          'Note : les montants versés par votre CAF peuvent refléter les barèmes précédents '
+          'si la revalorisation d\'avril 2026 (+0,8%) n\'a pas encore été appliquée à votre dossier.',
       suggestions: _suggestionsAides(situation, droits),
     );
   }
@@ -191,52 +281,25 @@ class CalculLocalService {
   // ============================================================
 
   (double, String) _calculerCMG(Situation s) {
-    if (s.modeGarde == ModeGarde.aucun) {
-      return (0.0, 'CMG : aucun mode de garde renseigné. [${sourcesLegales['cmg']}]');
+    // CMG réformé en septembre 2025 — l'ancien système forfaitaire est obsolète.
+    // Le nouveau calcul est basé sur les heures réelles et un taux d'effort progressif.
+    // Sans les données horaires et la grille officielle du taux d'effort,
+    // il est impossible de calculer le CMG avec précision.
+    // Le CMG est donc renvoyé à 0 avec une explication, et une suggestion est ajoutée.
+    if (s.modeGarde == ModeGarde.aucun || s.nombreEnfants == 0) {
+      return (0.0, 'CMG : non applicable. [${sourcesLegales['cmg']}]');
     }
-    // Éligible uniquement si au moins un enfant < 6 ans
-    final aEnfantMoins6 = s.agesEnfants.any((a) => a < 6);
-    if (!aEnfantMoins6 && s.nombreEnfants > 0) {
-      return (0.0, 'CMG : aucun enfant de moins de 6 ans. [${sourcesLegales['cmg']}]');
-    }
-    if (s.nombreEnfants == 0) {
-      return (0.0, 'CMG : aucun enfant. [${sourcesLegales['cmg']}]');
-    }
-
-    final revenusAnnuels = (s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus) * 12;
-    final key = s.modeGarde == ModeGarde.assistanteMaternelle
-        ? 'assistante_maternelle'
-        : s.modeGarde == ModeGarde.creche
-            ? 'creche'
-            : 'garde_domicile';
-
-    final tranches = _cmgMontants[key]!;
-    double montantBrut;
-    String tranche;
-    if (revenusAnnuels <= _cmgSeuil1) {
-      montantBrut = tranches[0];
-      tranche = 'tranche 1 (≤ ${_cmgSeuil1.toStringAsFixed(0)}€/an)';
-    } else if (revenusAnnuels <= _cmgSeuil2) {
-      montantBrut = tranches[1];
-      tranche = 'tranche 2 (≤ ${_cmgSeuil2.toStringAsFixed(0)}€/an)';
-    } else {
-      montantBrut = tranches[2];
-      tranche = 'tranche 3 (> ${_cmgSeuil2.toStringAsFixed(0)}€/an)';
+    final aEnfantEligible = s.parentIsole
+        ? s.agesEnfants.any((a) => a < 12) // < 12 ans pour parent isolé depuis sept. 2025
+        : s.agesEnfants.any((a) => a < 6);
+    if (!aEnfantEligible) {
+      return (0.0, 'CMG : aucun enfant éligible (< 6 ans, ou < 12 ans si parent isolé). '
+          '[${sourcesLegales['cmg']}]');
     }
 
-    final montant = _arrondi(s.gardeAlternee ? montantBrut / 2 : montantBrut);
-    final modeLabel = s.modeGarde == ModeGarde.assistanteMaternelle
-        ? 'assistante maternelle'
-        : s.modeGarde == ModeGarde.creche
-            ? 'crèche'
-            : 'garde à domicile';
-
-    return (
-      montant,
-      'CMG ($modeLabel) : $montant€/mois — $tranche'
-          '${s.gardeAlternee ? ' (garde alternée ÷2)' : ''}. '
-          '[${sourcesLegales['cmg']}]'
-    );
+    return (0.0, 'CMG : depuis septembre 2025, le CMG est calculé à l\'heure sur le coût réel de la garde. '
+        'Utilisez le simulateur officiel sur caf.fr pour un montant précis. '
+        '[${sourcesLegales['cmg']}]');
   }
 
   // ============================================================
@@ -253,25 +316,39 @@ class CalculLocalService {
     }
 
     final revenusAnnuels = (s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus) * 12;
-    final isole = s.situationFamiliale == SituationFamiliale.seul;
-    final plafonds = isole ? _pajePlafondIsole : _pajePlafondCouple;
-    final suppParEnfant = isole ? _pajePlafondIsoleParEnfantSupp : _pajePlafondCoupleParEnfantSupp;
+    final estCouple = s.situationFamiliale == SituationFamiliale.couple;
 
-    final idx = (s.nombreEnfants - 1).clamp(0, plafonds.length - 1);
-    final plafondBase = plafonds[idx];
-    final extraEnfants = s.nombreEnfants > plafonds.length ? (s.nombreEnfants - plafonds.length) * suppParEnfant : 0.0;
-    final plafond = plafondBase + extraEnfants;
+    // Catégorie de plafond : couple 1 rev / couple 2 rev / isolé
+    // Couple 2 revenus si conjoint gagne ≥ 6 306€/an (ou revenu mensuel ≥ 525.50€)
+    final estDeuxRevenus = estCouple && (s.revenuActiviteConjoint * 12 >= _pajeSeuilDeuxRevenus);
+    final estIsole = !estCouple;
 
-    if (revenusAnnuels > plafond * 2) {
-      return (0.0, 'PAJE : revenus (${revenusAnnuels.toStringAsFixed(0)}€/an) > 2× plafond. [${sourcesLegales['paje']}]');
+    // Plafonds pour 1 enfant (base) puis +6 213€/enfant supplémentaire
+    double plafondPlein;
+    double plafondPartiel;
+    final enfantsSupp = (s.nombreEnfants - 1).clamp(0, double.infinity);
+
+    if (estIsole || estDeuxRevenus) {
+      plafondPlein = _pajePlafondPlein2Rev1Enf + enfantsSupp * _pajePlafondPleinParEnfSupp;
+      plafondPartiel = _pajePlafondPartiel2Rev1Enf + enfantsSupp * _pajePlafondPleinParEnfSupp;
+    } else {
+      // Couple 1 revenu
+      plafondPlein = _pajePlafondPlein1Rev1Enf + enfantsSupp * _pajePlafondPleinParEnfSupp;
+      plafondPartiel = _pajePlafondPartiel1Rev1Enf + enfantsSupp * _pajePlafondPleinParEnfSupp;
     }
 
-    final montant = revenusAnnuels <= plafond ? _pajeTauxPlein : _pajeTauxPartiel;
-    final taux = revenusAnnuels <= plafond ? 'taux plein' : 'taux partiel';
+    if (revenusAnnuels > plafondPartiel) {
+      return (0.0, 'PAJE : revenus (${revenusAnnuels.toStringAsFixed(0)}€/an) > plafond '
+          '(${plafondPartiel.toStringAsFixed(0)}€). [${sourcesLegales['paje']}]');
+    }
+
+    final montant = revenusAnnuels <= plafondPlein ? _pajeTauxPlein : _pajeTauxPartiel;
+    final taux = revenusAnnuels <= plafondPlein ? 'taux plein' : 'taux partiel';
+    final categorie = estIsole ? 'isolé' : (estDeuxRevenus ? 'couple 2 rev.' : 'couple 1 rev.');
 
     return (
       montant,
-      'PAJE base : ${montant.toStringAsFixed(2)}€/mois ($taux — enfant < 3 ans). '
+      'PAJE base : ${montant.toStringAsFixed(2)}€/mois ($taux, $categorie — enfant < 3 ans). '
           '[${sourcesLegales['paje']}]'
     );
   }
@@ -284,21 +361,37 @@ class CalculLocalService {
     if (s.nombreEnfants < 3) {
       return (0.0, 'CF : 3 enfants minimum requis (${s.nombreEnfants} déclarés). [${sourcesLegales['cf']}]');
     }
-    // Tous les enfants doivent avoir entre 3 et 21 ans
     final enfantsEligibles = s.agesEnfants.where((a) => a >= 3 && a <= 21).length;
     if (s.agesEnfants.isNotEmpty && enfantsEligibles < 3) {
       return (0.0, 'CF : 3 enfants entre 3 et 21 ans requis. [${sourcesLegales['cf']}]');
     }
 
     final revenusAnnuels = (s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus) * 12;
+    final estCouple = s.situationFamiliale == SituationFamiliale.couple;
+    final estDeuxRevenus = estCouple && (s.revenuActiviteConjoint * 12 >= _pajeSeuilDeuxRevenus);
+    final enfantsSupp = (s.nombreEnfants - 3).clamp(0, double.infinity);
 
-    if (revenusAnnuels > _cfSeuilNormal) {
-      return (0.0, 'CF : revenus > plafond (${_cfSeuilNormal.toStringAsFixed(0)}€/an). [${sourcesLegales['cf']}]');
+    // Plafonds CF 2026 — varient selon couple 1 rev / 2 rev / isolé + nb enfants
+    double plafondMajore;
+    double plafondNormal;
+    if (!estCouple || estDeuxRevenus) {
+      // Couple 2 revenus ou parent isolé
+      plafondMajore = 27230 + enfantsSupp * _cfMajorationPlafondParEnfant;
+      plafondNormal = 54724 + enfantsSupp * _cfMajorationPlafondParEnfant;
+    } else {
+      // Couple 1 revenu
+      plafondMajore = _cfSeuilMajore + enfantsSupp * _cfMajorationPlafondParEnfant;
+      plafondNormal = _cfSeuilNormal + enfantsSupp * _cfMajorationPlafondParEnfant;
     }
 
-    final montantBrut = revenusAnnuels <= _cfSeuilMajore ? _cfMontantMajore : _cfMontantNormal;
+    if (revenusAnnuels > plafondNormal) {
+      return (0.0, 'CF : revenus (${revenusAnnuels.toStringAsFixed(0)}€/an) > plafond '
+          '(${plafondNormal.toStringAsFixed(0)}€). [${sourcesLegales['cf']}]');
+    }
+
+    final montantBrut = revenusAnnuels <= plafondMajore ? _cfMontantMajore : _cfMontantNormal;
     final montant = _arrondi(s.gardeAlternee ? montantBrut / 2 : montantBrut);
-    final niveau = revenusAnnuels <= _cfSeuilMajore ? 'majoré' : 'normal';
+    final niveau = revenusAnnuels <= plafondMajore ? 'majoré' : 'normal';
 
     return (
       montant,
@@ -395,16 +488,17 @@ class CalculLocalService {
 
     // ARS : maintenant dans le moteur de calcul (_calculerARS), pas en suggestion
 
-    // CMG — si enfant < 6 ans
-    final enfantsMoins6 = s.agesEnfants.where((a) => a < 6).length;
-    if (enfantsMoins6 > 0) {
+    // CMG — réformé sept. 2025, calcul à l'heure, non simulable sans données horaires
+    final ageLimiteCmg = s.parentIsole ? 12 : 6;
+    final enfantsEligiblesCmg = s.agesEnfants.where((a) => a < ageLimiteCmg).length;
+    if (enfantsEligiblesCmg > 0 && s.modeGarde != ModeGarde.aucun) {
       suggestions.add(AideSuggestion(
-        titre: 'CMG — Complément Mode de Garde',
+        titre: 'CMG — Complément de Libre Choix du Mode de Garde',
         description:
-            '${enfantsMoins6 > 1 ? '$enfantsMoins6 enfants < 6 ans. ' : ''}'
-            'Aide pour garde par assistante maternelle, crèche ou garde à domicile. '
-            'Jusqu\'à 1 842€/mois selon la solution de garde et vos revenus.',
-        source: 'CAF.fr — à demander directement sur votre espace allocataire',
+            'Depuis septembre 2025, le CMG est calculé à l\'heure sur le coût réel de la garde. '
+            'Le montant dépend de vos heures de garde et du taux d\'effort de votre foyer. '
+            'Simulez votre CMG sur le site officiel caf.fr.',
+        source: 'CAF.fr — simulateur CMG : caf.fr/allocataires/mes-services-en-ligne/faire-une-simulation',
       ));
     }
 
@@ -427,6 +521,34 @@ class CalculLocalService {
             'Accès à une épicerie sociale (courses à prix réduits) ou colis alimentaires gratuits. '
             'Réseau ANDES, Banques Alimentaires, Croix-Rouge, Secours Catholique.',
         source: 'CCAS (Centre Communal d\'Action Sociale) de votre commune',
+      ));
+    }
+
+    // MVA — suggestion si AAH éligible mais conditions MVA pas toutes remplies
+    if (droits.mva == 0 && droits.aah > 0 && s.tauxHandicap != null && s.tauxHandicap! >= 80) {
+      final raisons = <String>[];
+      if (s.revenuActiviteDemandeur > 0) raisons.add('revenus d\'activité déclarés');
+      if (s.situationVie != SituationVie.autonome) raisons.add('vie en institution/hébergé');
+      if (droits.apl <= 0) raisons.add('pas d\'aide au logement (APL/ALS/ALF)');
+      if (droits.aah < _aahMontantMax) raisons.add('AAH non au taux plein');
+      suggestions.add(AideSuggestion(
+        titre: 'MVA — Majoration pour la Vie Autonome (104,77€/mois)',
+        description:
+            'Supplément à l\'AAH pour les personnes vivant de manière autonome en logement. '
+            '${raisons.isNotEmpty ? 'Condition(s) non remplie(s) actuellement : ${raisons.join(', ')}. ' : ''}'
+            'Si votre situation évolue, pensez à en faire la demande.',
+        source: 'CAF.fr — demande auprès de votre CAF',
+      ));
+    }
+
+    // ASF — suggestion si parent isolé mais conditions pas remplies
+    if (droits.asf == 0 && s.parentIsole) {
+      suggestions.add(const AideSuggestion(
+        titre: 'ASF — Allocation de Soutien Familial (200,78€/enfant/mois)',
+        description:
+            'Versée au parent qui élève seul ses enfants lorsque l\'autre parent ne verse pas '
+            'la pension alimentaire. Si votre ex-conjoint ne paie pas, faites la demande.',
+        source: 'CAF.fr — demande auprès de votre CAF',
       ));
     }
 
@@ -460,9 +582,10 @@ class CalculLocalService {
       forfaitaire += _rsaBase * (i < 2 ? _rsaMajorationEnfant12 : _rsaMajorationEnfant3Plus);
     }
 
-    // Majoration parent isolé (art. L262-9 CASF)
+    // Majoration parent isolé — RSA majoré (art. L262-9 CASF)
+    // = base × 128.412% + base × 42.86% par enfant
     if (s.parentIsole && s.situationFamiliale == SituationFamiliale.seul && s.nombreEnfants > 0) {
-      forfaitaire = _rsaBase * (1 + _rsaMajorationIsolementBase);
+      forfaitaire = _rsaBase * _rsaMajorationIsolementBase;
       for (var i = 0; i < s.nombreEnfants; i++) {
         forfaitaire += _rsaBase * _rsaMajorationIsolementParEnfant;
       }
@@ -480,14 +603,19 @@ class CalculLocalService {
       }
     }
 
-    // Ressources du foyer :
-    // - Revenus d'activité + autres revenus
-    // - AAH comptée comme ressource (art. R262-11 CASF) → NON-CUMUL RSA + AAH
-    final ressourcesActivite = s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus;
-    final ressources = ressourcesActivite + aahMensuel;
+    // Revenus d'activité (pour la bonification 62%)
+    final revenusActivite = s.revenuActiviteDemandeur + s.revenuActiviteConjoint;
 
-    // RSA = forfaitaire - ressources - forfait logement
-    final rsa = (forfaitaire - ressources - forfaitLogement).clamp(0.0, double.infinity);
+    // Ressources totales du foyer :
+    // - Revenus d'activité + autres revenus + AAH (art. R262-11 CASF)
+    // - Pension alimentaire versée déduite (art. R262-6 CASF)
+    final ressources = (revenusActivite + s.totalAutresRevenus + aahMensuel
+        - s.pensionAlimentaireVersee).clamp(0.0, double.infinity);
+
+    // RSA = (Forfaitaire + 62% × revenus activité) - Ressources - Forfait logement
+    // La bonification 62% encourage la reprise d'activité (art. R262-7 CASF)
+    final rsa = (forfaitaire + 0.62 * revenusActivite - ressources - forfaitLogement)
+        .clamp(0.0, double.infinity);
     final montant = _arrondi(rsa);
 
     String detail;
@@ -515,46 +643,129 @@ class CalculLocalService {
   // APL — Art. L841-1 CCH
   // ============================================================
 
+  // Délègue vers APL ou ALS/ALF selon le type de logement
+  (double, String) _calculerAideLogement(Situation s) {
+    if (s.logementConventionne == false) {
+      return _calculerALSALF(s);
+    }
+    // logementConventionne == true ou null → APL (défaut)
+    return _calculerAPL(s);
+  }
+
   (double, String) _calculerAPL(Situation s) {
     if (s.statutLogement != StatutLogement.locataire || s.loyerMensuel == 0) {
       return (0.0, 'APL : non éligible (non locataire ou loyer nul). [${sourcesLegales['apl']}]');
     }
 
-    final nbPersonnes = (s.situationFamiliale == SituationFamiliale.couple ? 2 : 1) + s.nombreEnfants;
-    final plafonds = _aplLoyerPlafond[s.zoneLogement.value]!;
+    final estCouple = s.situationFamiliale == SituationFamiliale.couple;
+    final nbPac = s.nombreEnfants; // personnes à charge = enfants
+    final nbFoyer = (estCouple ? 2 : 1) + nbPac; // taille totale du foyer
+    final plafonds = _aplPlafonds[s.zoneLogement.value]!;
 
-    // Loyer plafonné selon zone et composition
+    // ── L : Loyer plafonné ──
+    // Indices : [0]=seul, [1]=couple, [2]=1pac, [3]=supplément
     double loyerPlafond;
-    if (nbPersonnes <= 3) {
-      loyerPlafond = plafonds[nbPersonnes]!;
+    if (nbPac == 0) {
+      loyerPlafond = estCouple ? plafonds[1] : plafonds[0];
+    } else if (nbPac == 1) {
+      loyerPlafond = plafonds[2];
     } else {
-      loyerPlafond = plafonds[3]! + plafonds[0]! * (nbPersonnes - 3);
+      loyerPlafond = plafonds[2] + plafonds[3] * (nbPac - 1);
     }
-    final loyerRetenu = s.loyerMensuel.clamp(0.0, loyerPlafond);
+    final l = s.loyerMensuel.clamp(0.0, loyerPlafond);
 
-    // Charges forfaitaires
-    final charges = _aplChargesForfaitaires;
+    // ── C : Forfait charges (base + 13.74€/pac) ──
+    final c = _aplChargesBase + nbPac * _aplChargesParPac;
 
-    // Ressources
-    final ressourcesMensuelles = s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus;
-    final ressourcesAnnuelles = ressourcesMensuelles * 12;
+    // ── R : Ressources annuelles (hors AAH, RSA, prime, bourses — art. R.822-4 CCH) ──
+    double autresRevenusEligibles = 0;
+    for (final r in s.autresRevenus) {
+      if (!r.type.name.startsWith('bourseEchelon')) {
+        autresRevenusEligibles += r.montantMensuel;
+      }
+    }
+    final ressourcesMensuelles = (s.revenuActiviteDemandeur +
+            s.revenuActiviteConjoint +
+            autresRevenusEligibles -
+            s.pensionAlimentaireVersee)
+        .clamp(0.0, double.infinity);
+    final rAnnuel = ressourcesMensuelles * 12;
 
-    // Calcul simplifié : APL = (loyer retenu + charges) × taux - participation personnelle
-    final tauxParticipation = (0.005 + ressourcesAnnuelles / 100000).clamp(0.0, 0.95);
-    final participation = _aplParticipationBase + tauxParticipation * (loyerRetenu + charges);
-    var apl = (loyerRetenu + charges) * 0.95 - participation;
+    // ── R0 : seuil de ressources (décret 2025-1401) ──
+    double r0;
+    if (nbFoyer <= 8) {
+      r0 = _aplR0[nbFoyer]?.toDouble() ?? _aplR0[8]!.toDouble();
+    } else {
+      r0 = _aplR0[8]! + (nbFoyer - 8) * _aplR0ParPersonneSupp;
+    }
+    final ressourceBase = (rAnnuel - r0).clamp(0.0, double.infinity);
+
+    // ── TF : taux famille (art. 14 arrêté 27/09/2019) ──
+    double tf;
+    if (nbPac == 0) {
+      tf = estCouple ? _aplTF[1] : _aplTF[0];
+    } else if (nbPac + 2 <= _aplTF.length) {
+      tf = _aplTF[nbPac + 1]; // index 2=1pac, 3=2pac, etc.
+    } else {
+      tf = _aplTF.last + (nbPac - 6) * _aplTFParPacSupp;
+    }
+
+    // ── TL : taux loyer (progressif, basé sur RL = L / LR) ──
+    // LR = loyer plafond Zone II pour la même composition
+    final plafondsZone2 = _aplPlafonds['zone_2']!;
+    double lr;
+    if (nbPac == 0) {
+      lr = estCouple ? plafondsZone2[1] : plafondsZone2[0];
+    } else if (nbPac == 1) {
+      lr = plafondsZone2[2];
+    } else {
+      lr = plafondsZone2[2] + plafondsZone2[3] * (nbPac - 1);
+    }
+    // RL = L / LR (ratio décimal, ex: 0.9372 = 93.72%)
+    // TL progressif : <0.45 → 0, 0.45-0.75 → 0.0045×(RL-0.45), ≥0.75 → 0.0045×0.30+0.0068×(RL-0.75)
+    final rl = lr > 0 ? (l / lr) : 0.0;
+    double tl;
+    if (rl < 0.45) {
+      tl = 0;
+    } else if (rl < 0.75) {
+      tl = 0.0045 * (rl - 0.45);
+    } else {
+      tl = 0.0045 * 0.30 + 0.0068 * (rl - 0.75);
+    }
+    tl = (tl * 1000).round() / 1000; // arrondi 3 décimales
+
+    // ── Tp = TF + TL ──
+    final tp = tf + tl;
+
+    // ── P0 = max(8.5% × (L+C), 39.56€) ──
+    final p0 = (0.085 * (l + c)).clamp(_aplP0Plancher, double.infinity);
+
+    // ── PP = P0 + Tp × (R - R0) ──
+    final pp = p0 + tp * ressourceBase;
+
+    // ── APL = L + C - PP - 5€ ──
+    var apl = l + c - pp - _aplDeduction;
     apl = apl.clamp(0.0, double.infinity);
 
-    // Seuil minimum
-    final montant = apl < _aplSeuilMinimum ? 0.0 : _arrondi(apl);
+    // APL locatif ordinaire : aucun seuil de non-versement (0€)
+    // (ALS/ALF = seuil 10€, mais on calcule ici l'APL)
+    final montant = apl > 0 ? _arrondi(apl) : 0.0;
 
-    final detail = montant > 0
-        ? 'APL estimée : $montant\u20AC/mois. '
-            'Loyer retenu : ${loyerRetenu.toStringAsFixed(2)}\u20AC '
-            '(plafond ${s.zoneLogement.value} : ${loyerPlafond.toStringAsFixed(2)}\u20AC). '
-            '[${sourcesLegales['apl']}]'
-        : 'APL : montant < ${_aplSeuilMinimum.toStringAsFixed(0)}\u20AC (seuil non-versement) '
-            'ou non éligible. [${sourcesLegales['apl']}]';
+    String detail;
+    if (montant > 0) {
+      final sousR0 = rAnnuel <= r0;
+      detail = 'APL estimée : $montant\u20AC/mois. '
+          'L=${l.toStringAsFixed(2)}\u20AC (plafond ${loyerPlafond.toStringAsFixed(2)}\u20AC), '
+          'C=${c.toStringAsFixed(2)}\u20AC, '
+          'PP=${pp.toStringAsFixed(2)}\u20AC (P0=${p0.toStringAsFixed(2)}\u20AC, Tp=${(tp * 100).toStringAsFixed(2)}%)'
+          '${sousR0 ? ' — revenus sous R0, PP minimale' : ''}. '
+          '[${sourcesLegales['apl']}]';
+    } else {
+      detail = 'APL : non éligible. '
+          'PP (${pp.toStringAsFixed(2)}\u20AC) ≥ L+C-5 (${(l + c - _aplDeduction).toStringAsFixed(2)}\u20AC). '
+          'Revenus : ${rAnnuel.toStringAsFixed(0)}\u20AC/an, R0 : ${r0.toStringAsFixed(0)}\u20AC. '
+          '[${sourcesLegales['apl']}]';
+    }
 
     return (montant, detail);
   }
@@ -563,20 +774,29 @@ class CalculLocalService {
   // PRIME D'ACTIVITÉ — Art. L841-3 CSS
   // ============================================================
 
-  (double, String) _calculerPrimeActivite(Situation s) {
+  (double, String) _calculerPrimeActivite(Situation s, {bool percoitApl = false}) {
     final revenusActivite = s.revenuActiviteDemandeur + s.revenuActiviteConjoint;
     if (revenusActivite == 0) {
       return (0.0, 'Prime d\'activité : non éligible (aucun revenu d\'activité). '
           '[${sourcesLegales['prime_activite']}]');
     }
 
+    final nbPersonnes = (s.situationFamiliale == SituationFamiliale.couple ? 2 : 1) + s.nombreEnfants;
+
     // Montant forfaitaire majoré
     var forfaitaire = _primeBase;
     if (s.situationFamiliale == SituationFamiliale.couple) {
       forfaitaire *= (1 + _primeMajorationCouple);
-    }
-    for (var i = 0; i < s.nombreEnfants; i++) {
-      forfaitaire += _primeBase * (i < 2 ? _primeMajorationEnfant12 : _primeMajorationEnfant3Plus);
+    } else if (s.parentIsole && s.nombreEnfants > 0) {
+      // Majoration parent isolé (même taux que RSA majoré — art. R844-2 CSS)
+      forfaitaire = _primeBase * _rsaMajorationIsolementBase;
+      for (var i = 0; i < s.nombreEnfants; i++) {
+        forfaitaire += _primeBase * _rsaMajorationIsolementParEnfant;
+      }
+    } else {
+      for (var i = 0; i < s.nombreEnfants; i++) {
+        forfaitaire += _primeBase * (i < 2 ? _primeMajorationEnfant12 : _primeMajorationEnfant3Plus);
+      }
     }
 
     // Bonification individuelle (art. L844-1 CSS)
@@ -588,17 +808,30 @@ class CalculLocalService {
       }
     }
 
-    // Ressources prises en compte (38% forfait, art. R844-1 CSS)
-    final ressources = s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus;
+    // Forfait logement (déduit comme pour le RSA si APL ou hébergé)
+    var forfaitLogement = 0.0;
+    if (s.statutLogement == StatutLogement.heberge || s.loyerMensuel == 0 || percoitApl) {
+      if (nbPersonnes == 1) {
+        forfaitLogement = _rsaForfaitLogement1;
+      } else if (nbPersonnes == 2) {
+        forfaitLogement = _rsaForfaitLogement2;
+      } else {
+        forfaitLogement = _rsaForfaitLogement3Plus;
+      }
+    }
 
-    // Prime = forfaitaire + 61% revenus activité + bonification - ressources
-    final prime = forfaitaire + 0.61 * revenusActivite + bonification - ressources;
+    // Ressources (pension versée NON déduite pour la prime — art. R844-1 CSS)
+    final ressources = revenusActivite + s.totalAutresRevenus;
+
+    // Prime = forfaitaire + 59.85% × revenus activité + bonification - ressources - forfait logement
+    final prime = forfaitaire + 0.5985 * revenusActivite + bonification - ressources - forfaitLogement;
     final montant = _arrondi(prime.clamp(0.0, double.infinity));
 
     final detail = montant > 0
         ? 'Prime d\'activité estimée : $montant\u20AC/mois. '
             'Forfaitaire : ${forfaitaire.toStringAsFixed(2)}\u20AC, '
-            'bonification : ${bonification.toStringAsFixed(2)}\u20AC. '
+            'bonification : ${bonification.toStringAsFixed(2)}\u20AC'
+            '${forfaitLogement > 0 ? ', forfait logement : -${forfaitLogement.toStringAsFixed(2)}\u20AC' : ''}. '
             '[${sourcesLegales['prime_activite']}]'
         : 'Prime d\'activité : non éligible (ressources trop élevées). '
             '[${sourcesLegales['prime_activite']}]';
@@ -639,9 +872,10 @@ class CalculLocalService {
     }
     montant += nb18Plus * _afMajoration18Plus;
 
-    // Modulation selon ressources (plafonds 2026)
-    final plafondT1 = _afPlafondTranche1_2enfants + _afSupplementPlafondParEnfant * (s.nombreEnfants - 2).clamp(0, double.infinity);
-    final plafondT2 = _afPlafondTranche2_2enfants + _afSupplementPlafondParEnfant * (s.nombreEnfants - 2).clamp(0, double.infinity);
+    // Modulation selon ressources (plafonds 2026 : base + 7 465€/enfant au-delà de 2)
+    final enfantsSupp = (s.nombreEnfants - 2).clamp(0, double.infinity);
+    final plafondT1 = _afPlafondBase1 + _afMajorationPlafondParEnfant * enfantsSupp;
+    final plafondT2 = _afPlafondBase2 + _afMajorationPlafondParEnfant * enfantsSupp;
 
     String tranche;
     if (ressourcesAnnuelles > plafondT2) {
@@ -677,36 +911,57 @@ class CalculLocalService {
     }
 
     // DÉCONJUGALISATION : seules les ressources du DEMANDEUR comptent
-    // (pas celles du conjoint — loi du 16 août 2022, effective oct. 2023)
-    final ressourcesAnnuellesDemandeur = (s.revenuActiviteDemandeur + s.totalAutresRevenus) * 12;
+    // (loi du 16 août 2022, effective oct. 2023)
 
-    // Plafond selon situation (le plafond couple reste pour le calcul mais
-    // seules les ressources du demandeur sont comparées)
-    var plafond = _aahPlafondSeul;
-    plafond += s.nombreEnfants * _aahMajorationEnfant;
-
-    if (ressourcesAnnuellesDemandeur > plafond) {
-      return (0.0, 'AAH : ressources annuelles du demandeur '
-          '(${ressourcesAnnuellesDemandeur.toStringAsFixed(0)}\u20AC) '
-          '> plafond (${plafond.toStringAsFixed(0)}\u20AC). '
-          'Note : déconjugalisation — revenus du conjoint non pris en compte. '
-          '[${sourcesLegales['aah']}]');
+    // ── Abattement sur revenus d'activité (art. R821-4 CSS) ──
+    // 80% d'abattement sur la tranche ≤ 30% SMIC brut
+    // 40% d'abattement sur la tranche > 30% SMIC brut
+    // SMIC brut mensuel 2026 = 1 823,03€ → 30% = 546,91€ (source : aide-sociale.fr, arrêté 31/12/2025)
+    const smicBrut30pct = 546.91;
+    final revenuActivite = s.revenuActiviteDemandeur;
+    double revenuActiviteRetenu;
+    if (revenuActivite <= 0) {
+      revenuActiviteRetenu = 0;
+    } else if (revenuActivite <= smicBrut30pct) {
+      // 80% abattu → seuls 20% retenus
+      revenuActiviteRetenu = revenuActivite * 0.20;
+    } else {
+      // 20% sur première tranche + 60% sur le reste
+      revenuActiviteRetenu = smicBrut30pct * 0.20 + (revenuActivite - smicBrut30pct) * 0.60;
     }
 
-    // AAH = montant max - ressources mensuelles du demandeur
-    final aah = (_aahMontantMax - ressourcesAnnuellesDemandeur / 12).clamp(0.0, _aahMontantMax);
+    // Autres revenus (non d'activité) : pas d'abattement
+    final autresRevenusMensuels = s.totalAutresRevenus;
+
+    final ressourcesMensuellesRetenues = revenuActiviteRetenu + autresRevenusMensuels;
+    final ressourcesAnnuelles = ressourcesMensuellesRetenues * 12;
+
+    // Plafond
+    var plafond = _aahPlafondSeul + s.nombreEnfants * _aahMajorationEnfant;
+
+    if (ressourcesAnnuelles > plafond) {
+      return (0.0, 'AAH : ressources retenues (${ressourcesAnnuelles.toStringAsFixed(0)}\u20AC/an '
+          'après abattement) > plafond (${plafond.toStringAsFixed(0)}\u20AC). '
+          'Déconjugalisée. [${sourcesLegales['aah']}]');
+    }
+
+    // AAH différentielle = max - ressources mensuelles retenues
+    final aah = (_aahMontantMax - ressourcesMensuellesRetenues).clamp(0.0, _aahMontantMax);
     final montant = _arrondi(aah);
 
-    return (
-      montant,
-      montant > 0
-          ? 'AAH : $montant\u20AC/mois (taux ${s.tauxHandicap}%, '
-              'montant max ${_aahMontantMax.toStringAsFixed(2)}\u20AC). '
-              'Déconjugalisée depuis oct. 2023. '
-              '[${sourcesLegales['aah']}]'
-          : 'AAH : non éligible au vu de vos ressources. '
-              '[${sourcesLegales['aah']}]'
-    );
+    String detail;
+    if (montant > 0) {
+      final abattementInfo = revenuActivite > 0
+          ? 'Revenus activité ${revenuActivite.toStringAsFixed(0)}\u20AC → '
+              'retenus ${revenuActiviteRetenu.toStringAsFixed(0)}\u20AC (abattement 80%/40%). '
+          : '';
+      detail = 'AAH : $montant\u20AC/mois (taux ${s.tauxHandicap}%). $abattementInfo'
+          'Déconjugalisée oct. 2023. [${sourcesLegales['aah']}]';
+    } else {
+      detail = 'AAH : non éligible. [${sourcesLegales['aah']}]';
+    }
+
+    return (montant, detail);
   }
 
   // ============================================================
@@ -726,8 +981,8 @@ class CalculLocalService {
     }
 
     final revenuAnnuel = (s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus) * 12;
-    final plafondBase = s.parentIsole ? 25336.0 : 32267.0;
-    final plafondTotal = plafondBase + (s.nombreEnfants - 1) * 8153.0;
+    // Plafonds ARS 2026 : 22 274€ + 6 682€/enfant
+    final plafondTotal = 22274.0 + s.nombreEnfants * 6682.0;
 
     if (revenuAnnuel > plafondTotal) {
       return (0.0,
@@ -737,11 +992,11 @@ class CalculLocalService {
     double totalAnnuel = 0;
     for (final age in s.agesEnfants) {
       if (age >= 6 && age < 11) {
-        totalAnnuel += 403.72;
+        totalAnnuel += 426.87;
       } else if (age >= 11 && age < 15) {
-        totalAnnuel += 424.95;
+        totalAnnuel += 450.41;
       } else if (age >= 15 && age <= 18) {
-        totalAnnuel += 440.65;
+        totalAnnuel += 466.02;
       }
     }
 
@@ -770,6 +1025,8 @@ class CalculLocalService {
       'cf': droits.cf,
       'prepare': droits.prepare,
       'ars': droits.ars,
+      'mva': droits.mva,
+      'asf': droits.asf,
     };
 
     for (final entry in aides.entries) {
@@ -791,6 +1048,161 @@ class CalculLocalService {
       ecartTotal: _arrondi(ecartTotal),
       aidesNonReclamees: aidesNonReclamees,
     );
+  }
+
+  // ============================================================
+  // ALS / ALF — Allocation de Logement Sociale / Familiale
+  // Art. L831-1 CSS (ALS) — Art. L542-1 CSS (ALF)
+  // Logement non conventionné — même formule qu'APL, plafonds différents
+  // ============================================================
+
+  (double, String) _calculerALSALF(Situation s) {
+    if (s.statutLogement != StatutLogement.locataire || s.loyerMensuel == 0) {
+      return (0.0, 'ALS/ALF : non éligible (non locataire ou loyer nul).');
+    }
+
+    final estCouple = s.situationFamiliale == SituationFamiliale.couple;
+    final nbPac = s.nombreEnfants;
+    // ALF : famille avec enfants OU couple marié/pacsé
+    // ALS : personnes seules, en concubinage sans enfants
+    final estALF = nbPac > 0 ||
+        s.statutConjugal == StatutConjugal.marie ||
+        s.statutConjugal == StatutConjugal.pacse;
+    final typeAide = estALF ? 'ALF' : 'ALS';
+    final sourceLeg = estALF ? sourcesLegales['alf']! : sourcesLegales['als']!;
+
+    // Harmonisation 2018 : mêmes plafonds qu'APL
+    final plafonds = _aplPlafonds[s.zoneLogement.value]!;
+    double loyerPlafond;
+    if (nbPac == 0) {
+      loyerPlafond = estCouple ? plafonds[1] : plafonds[0];
+    } else if (nbPac == 1) {
+      loyerPlafond = plafonds[2];
+    } else {
+      loyerPlafond = plafonds[2] + plafonds[3] * (nbPac - 1);
+    }
+    final l = s.loyerMensuel.clamp(0.0, loyerPlafond);
+    final c = _aplChargesBase + nbPac * _aplChargesParPac;
+
+    double autresRevenusEligibles = 0;
+    for (final r in s.autresRevenus) {
+      if (!r.type.name.startsWith('bourseEchelon')) autresRevenusEligibles += r.montantMensuel;
+    }
+    final ressourcesMensuelles = (s.revenuActiviteDemandeur + s.revenuActiviteConjoint +
+        autresRevenusEligibles - s.pensionAlimentaireVersee).clamp(0.0, double.infinity);
+    final rAnnuel = ressourcesMensuelles * 12;
+
+    final nbFoyer = (estCouple ? 2 : 1) + nbPac;
+    double r0;
+    if (nbFoyer <= 8) {
+      r0 = _aplR0[nbFoyer]?.toDouble() ?? _aplR0[8]!.toDouble();
+    } else {
+      r0 = _aplR0[8]! + (nbFoyer - 8) * _aplR0ParPersonneSupp;
+    }
+    final ressourceBase = (rAnnuel - r0).clamp(0.0, double.infinity);
+
+    // TF identique à APL
+    double tf;
+    if (nbPac == 0) {
+      tf = estCouple ? _aplTF[1] : _aplTF[0];
+    } else if (nbPac + 2 <= _aplTF.length) {
+      tf = _aplTF[nbPac + 1];
+    } else {
+      tf = _aplTF.last + (nbPac - 6) * _aplTFParPacSupp;
+    }
+
+    // TL : référence LR = plafond Zone 2 ALS (pas APL)
+    final plafondsAlsZ2 = _aplPlafonds['zone_2']!; // harmonisation 2018 : même référence qu'APL
+    double lr;
+    if (nbPac == 0) {
+      lr = estCouple ? plafondsAlsZ2[1] : plafondsAlsZ2[0];
+    } else if (nbPac == 1) {
+      lr = plafondsAlsZ2[2];
+    } else {
+      lr = plafondsAlsZ2[2] + plafondsAlsZ2[3] * (nbPac - 1);
+    }
+    final rl = lr > 0 ? (l / lr) : 0.0;
+    double tl;
+    if (rl < 0.45) {
+      tl = 0;
+    } else if (rl < 0.75) {
+      tl = 0.0045 * (rl - 0.45);
+    } else {
+      tl = 0.0045 * 0.30 + 0.0068 * (rl - 0.75);
+    }
+    tl = (tl * 1000).round() / 1000;
+
+    final tp = tf + tl;
+    final p0 = (0.085 * (l + c)).clamp(_aplP0Plancher, double.infinity);
+    final pp = p0 + tp * ressourceBase;
+    var aide = l + c - pp - _aplDeduction;
+    // Seuil de versement ALS/ALF : 10€ (vs 0€ pour APL)
+    final montant = aide >= 10.0 ? _arrondi(aide) : 0.0;
+
+    if (montant > 0) {
+      return (montant,
+        '$typeAide estimée : $montant\u20AC/mois. '
+        'Logement non conventionné. '
+        'L=${l.toStringAsFixed(2)}\u20AC (plafond ${loyerPlafond.toStringAsFixed(2)}\u20AC), '
+        'C=${c.toStringAsFixed(2)}\u20AC, PP=${pp.toStringAsFixed(2)}\u20AC. '
+        '[$sourceLeg]');
+    } else {
+      return (0.0,
+        '$typeAide : non éligible. '
+        'PP (${pp.toStringAsFixed(2)}\u20AC) ≥ L+C-5 ou montant < 10\u20AC. [$sourceLeg]');
+    }
+  }
+
+  // ============================================================
+  // MVA — Majoration pour la Vie Autonome
+  // Art. L821-1-2 CSS — Décret n° 2026-229
+  // ============================================================
+
+  (double, String) _calculerMVA(Situation s, {required double aahMontant, required double aplMontant}) {
+    if (s.tauxHandicap == null || s.tauxHandicap! < 80) {
+      return (0.0, 'MVA : taux d\'incapacité < 80%. [${sourcesLegales['mva']}]');
+    }
+    if (aahMontant < _aahMontantMax) {
+      return (0.0, 'MVA : AAH non au taux plein (${aahMontant.toStringAsFixed(2)}€ < ${_aahMontantMax}€). [${sourcesLegales['mva']}]');
+    }
+    if (s.revenuActiviteDemandeur > 0) {
+      return (0.0, 'MVA : revenus d\'activité déclarés — non éligible. [${sourcesLegales['mva']}]');
+    }
+    if (s.situationVie != SituationVie.autonome) {
+      return (0.0, 'MVA : vie en institution ou hébergé — non éligible. [${sourcesLegales['mva']}]');
+    }
+    // Condition : percevoir une aide au logement (APL/ALS/ALF), pas simplement être locataire
+    if (aplMontant <= 0) {
+      return (0.0, 'MVA : aucune aide au logement perçue — non éligible. '
+          'La MVA nécessite de percevoir l\'APL, l\'ALS ou l\'ALF. [${sourcesLegales['mva']}]');
+    }
+
+    return (_mvaMontant, 'MVA : ${_mvaMontant}\u20AC/mois — AAH taux plein + vie autonome + aide au logement. [${sourcesLegales['mva']}]');
+  }
+
+  // ============================================================
+  // ASF — Allocation de Soutien Familial
+  // Art. L523-1 CSS — Barèmes 01/04/2026
+  // ============================================================
+
+  (double, String) _calculerASF(Situation s) {
+    if (!s.parentIsole) {
+      return (0.0, 'ASF : non parent isolé. [${sourcesLegales['asf']}]');
+    }
+    if (s.nombreEnfants == 0) {
+      return (0.0, 'ASF : aucun enfant à charge. [${sourcesLegales['asf']}]');
+    }
+
+    final estVeuf = s.statutConjugal == StatutConjugal.veuf;
+    if (!estVeuf && !s.pensionAlimentaireNonPercue) {
+      return (0.0, 'ASF : pension alimentaire perçue ou non applicable. [${sourcesLegales['asf']}]');
+    }
+
+    final montant = _arrondi(_asfMontantParEnfant * s.nombreEnfants);
+    final raison = estVeuf ? 'orphelin(s)' : 'pension non versée par l\'autre parent';
+    return (montant, 'ASF : ${montant.toStringAsFixed(2)}€/mois '
+        '(${s.nombreEnfants} enfant(s), $raison). '
+        '[${sourcesLegales['asf']}]');
   }
 
   // ============================================================

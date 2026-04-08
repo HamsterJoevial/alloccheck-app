@@ -8,6 +8,9 @@ import 'core/services/payment_service.dart';
 import 'features/simulation/screens/simulation_screen.dart';
 import 'features/results/screens/results_screen.dart';
 import 'features/letter/screens/letter_screen.dart';
+import 'features/legal/screens/privacy_screen.dart';
+import 'features/legal/screens/legal_mentions_screen.dart';
+import 'features/legal/screens/terms_screen.dart';
 
 /// Token Stripe capturé avant tout initialisation Flutter (avant réécriture URL).
 String? _stripeReturnToken;
@@ -49,6 +52,18 @@ class AllocCheckApp extends StatelessWidget {
                 droits: args['droits'] as DroitsResult,
                 ecart: args['ecart'] as EcartResult,
               ),
+            );
+          case '/privacy':
+            return MaterialPageRoute(
+              builder: (_) => const PrivacyScreen(),
+            );
+          case '/legal':
+            return MaterialPageRoute(
+              builder: (_) => const LegalMentionsScreen(),
+            );
+          case '/terms':
+            return MaterialPageRoute(
+              builder: (_) => const TermsScreen(),
             );
           default:
             return MaterialPageRoute(
@@ -247,6 +262,59 @@ class _HomeScreenState extends State<HomeScreen> {
                 'Outil d\'aide à la compréhension de vos droits.\nNe constitue pas un conseil juridique.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 10),
                 textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pushNamed('/legal'),
+                    child: Text(
+                      'Mentions légales',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontSize: 10,
+                            color: AppTheme.textSecondary,
+                            decoration: TextDecoration.underline,
+                          ),
+                    ),
+                  ),
+                  Text(
+                    ' · ',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontSize: 10,
+                          color: AppTheme.textSecondary,
+                        ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pushNamed('/terms'),
+                    child: Text(
+                      'CGU',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontSize: 10,
+                            color: AppTheme.textSecondary,
+                            decoration: TextDecoration.underline,
+                          ),
+                    ),
+                  ),
+                  Text(
+                    ' · ',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontSize: 10,
+                          color: AppTheme.textSecondary,
+                        ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pushNamed('/privacy'),
+                    child: Text(
+                      'Confidentialité',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontSize: 10,
+                            color: AppTheme.textSecondary,
+                            decoration: TextDecoration.underline,
+                          ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

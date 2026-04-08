@@ -1,17 +1,9 @@
 import 'dart:convert';
-import 'dart:js_interop';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/situation.dart';
-
-/// Navigation synchrone vers une URL (même onglet) — Flutter Web uniquement.
-@JS('window.location.assign')
-external void _jsLocationAssign(String url);
-
-/// Écriture synchrone en localStorage — Flutter Web uniquement.
-@JS('window.localStorage.setItem')
-external void _jsLocalStorageSetItem(String key, String value);
+import '../utils/web_payment_bridge.dart';
 
 /// Gestion du paywall — Stripe Payment Link + localStorage unlock
 class PaymentService {
@@ -73,11 +65,13 @@ class PaymentService {
     final jsonStr = jsonEncode(situation.toJsonFull());
 
     if (kIsWeb) {
-      // Écriture synchrone directe — évite tout problème de timing async.
+      // Écriture synchrone directe + navigation même onglet via JS interop.
       // Clé préfixée 'flutter.' pour correspondre à shared_preferences_web.
-      _jsLocalStorageSetItem('flutter.$_situationKey', jsonStr);
-      // Navigation même onglet — pas de popup blocking, localStorage partagé.
-      _jsLocationAssign(_stripePaymentLink);
+      webSaveSituationAndNavigate(
+        'flutter.$_situationKey',
+        jsonStr,
+        _stripePaymentLink,
+      );
     } else {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_situationKey, jsonStr);

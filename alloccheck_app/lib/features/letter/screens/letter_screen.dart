@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'dart:js_interop';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,15 +8,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/models/droits_result.dart';
 import '../../../core/models/situation.dart';
 import '../../../core/theme/app_theme.dart';
-
-@JS('document.createElement')
-external JSObject _jsCreateElement(String tag);
-
-extension on JSObject {
-  external set href(String value);
-  external set download(String value);
-  external void click();
-}
+import '../../../core/utils/web_download_bridge.dart';
 
 /// Écran de génération de courrier de contestation
 class LetterScreen extends StatefulWidget {
@@ -38,7 +28,7 @@ class LetterScreen extends StatefulWidget {
 }
 
 class _LetterScreenState extends State<LetterScreen> {
-  String? _selectedAide;
+  final Set<String> _selectedAides = {};
   String _letterType = 'reclamation_gracieuse';
 
   // Infos pour le courrier
@@ -51,7 +41,7 @@ class _LetterScreenState extends State<LetterScreen> {
   final _emailController = TextEditingController();
   final _refCourrierController = TextEditingController();
 
-  bool get _canGenerate => _selectedAide != null;
+  bool get _canGenerate => _selectedAides.isNotEmpty;
 
   @override
   void dispose() {
@@ -90,8 +80,32 @@ class _LetterScreenState extends State<LetterScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Choix de l'aide à contester
-            Text('Aide à contester :', style: Theme.of(context).textTheme.titleMedium),
+            // Choix des aides à contester
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Aide(s) à contester :', style: Theme.of(context).textTheme.titleMedium),
+                ),
+                if (aidesContestables.length > 1)
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        if (_selectedAides.length == aidesContestables.length) {
+                          _selectedAides.clear();
+                        } else {
+                          _selectedAides.addAll(aidesContestables.map((e) => e.key));
+                        }
+                      });
+                    },
+                    child: Text(
+                      _selectedAides.length == aidesContestables.length
+                          ? 'Tout désélectionner'
+                          : 'Tout sélectionner',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: 8),
             ...aidesContestables.map((entry) {
               final aide = entry.key;
@@ -99,7 +113,7 @@ class _LetterScreenState extends State<LetterScreen> {
               final label = AppTheme.aideLabels[aide] ?? aide;
               final color = AppTheme.aideColors[aide] ?? AppTheme.primary;
               final icon = AppTheme.aideIcons[aide] ?? Icons.euro;
-              final isSelected = _selectedAide == aide;
+              final isSelected = _selectedAides.contains(aide);
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
@@ -111,10 +125,15 @@ class _LetterScreenState extends State<LetterScreen> {
                   ),
                   color: isSelected ? color.withValues(alpha: 0.05) : null,
                 ),
-                child: RadioListTile<String>(
-                  value: aide,
-                  groupValue: _selectedAide,
-                  onChanged: (v) => setState(() => _selectedAide = v),
+                child: CheckboxListTile(
+                  value: isSelected,
+                  onChanged: (v) => setState(() {
+                    if (v == true) {
+                      _selectedAides.add(aide);
+                    } else {
+                      _selectedAides.remove(aide);
+                    }
+                  }),
                   title: Row(
                     children: [
                       Icon(icon, color: color, size: 20),
@@ -131,6 +150,7 @@ class _LetterScreenState extends State<LetterScreen> {
                   ),
                   subtitle: Text('soit ${(ecart * 12).toStringAsFixed(0)}\u20AC/an manquants'),
                   activeColor: color,
+                  controlAffinity: ListTileControlAffinity.leading,
                 ),
               );
             }),
@@ -329,20 +349,30 @@ class _LetterScreenState extends State<LetterScreen> {
   }
 
   String _buildLetterText() {
-    final aide = _selectedAide!;
-    final aideLabel = AppTheme.aideLabels[aide] ?? aide;
-    final ecartMensuel = widget.ecart.ecarts[aide] ?? 0;
-    final ecartAnnuel = ecartMensuel * 12;
-    final montantTheorique = aide == 'rsa'
-        ? widget.droits.rsa
-        : aide == 'apl'
-            ? widget.droits.apl
-            : aide == 'prime_activite'
-                ? widget.droits.primeActivite
-                : aide == 'af'
-                    ? widget.droits.af
-                    : widget.droits.aah;
-    final montantPercu = montantTheorique - ecartMensuel;
+    final montantsParAide = {
+      'rsa': widget.droits.rsa,
+      'apl': widget.droits.apl,
+      'prime_activite': widget.droits.primeActivite,
+      'af': widget.droits.af,
+      'aah': widget.droits.aah,
+      'mva': widget.droits.mva,
+      'asf': widget.droits.asf,
+      'cmg': widget.droits.cmg,
+      'paje': widget.droits.paje,
+      'cf': widget.droits.cf,
+      'prepare': widget.droits.prepare,
+      'ars': widget.droits.ars,
+    };
+
+    final refsLegales = {
+      'rsa': 'art. L262-2 CASF, Décret n° 2026-220',
+      'apl': 'art. L841-1 CCH',
+      'prime_activite': 'art. L841-3 et L844-1 CSS, Décret n° 2026-222',
+      'af': 'art. L512-1 CSS, Instruction DSS/2B/2026/46',
+      'aah': 'art. L821-1 CSS, Décret n° 2026-229',
+      'mva': 'art. L821-1-2 CSS, Décret n° 2026-229',
+      'asf': 'art. L523-1 CSS, barèmes 01/04/2026',
+    };
 
     final now = DateTime.now();
     final dateStr =
@@ -371,43 +401,63 @@ class _LetterScreenState extends State<LetterScreen> {
         : '';
 
     final isCRA = _letterType == 'saisine_cra';
+    final aides = _selectedAides.toList();
+    final labels = aides.map((a) => AppTheme.aideLabels[a] ?? a).toList();
+    final labelsStr = labels.join(', ');
 
-    // Références légales par aide
-    final refsLegales = {
-      'rsa': 'art. L262-2 du Code de l\'Action Sociale et des Familles (CASF), '
-          'Décret n° 2026-220 du 30/03/2026',
-      'apl': 'art. L841-1 du Code de la Construction et de l\'Habitation (CCH)',
-      'prime_activite': 'art. L841-3 et L844-1 du Code de la Sécurité Sociale (CSS), '
-          'Décret n° 2026-222 du 30/03/2026',
-      'af': 'art. L512-1 du Code de la Sécurité Sociale (CSS), '
-          'Instruction DSS/2B/2026/46 du 20/03/2026',
-      'aah': 'art. L821-1 du Code de la Sécurité Sociale (CSS), '
-          'Décret n° 2026-229 du 30/03/2026',
-    };
-    final ref = refsLegales[aide] ?? 'barèmes officiels 2026';
+    // Écart total des aides sélectionnées
+    var ecartTotalMensuel = 0.0;
+    for (final aide in aides) {
+      ecartTotalMensuel += widget.ecart.ecarts[aide] ?? 0;
+    }
 
     final objet = isCRA
-        ? 'Objet : Saisine de la Commission de Recours Amiable — $aideLabel'
-        : 'Objet : Demande de réexamen de mes droits — $aideLabel';
+        ? 'Objet : Saisine de la Commission de Recours Amiable — $labelsStr'
+        : 'Objet : Demande de réexamen de mes droits — $labelsStr';
 
     final intro = isCRA
         ? 'Suite à l\'absence de réponse à ma réclamation gracieuse (ou à son refus), '
-            'je saisie la Commission de Recours Amiable conformément aux articles R142-1 à R142-8 '
+            'je saisis la Commission de Recours Amiable conformément aux articles R142-1 à R142-8 '
             'du Code de la Sécurité Sociale.'
-        : 'Je me permets de vous contacter au sujet du versement de $aideLabel '
-            'dont je bénéficie (ou auquel je pense avoir droit).';
+        : aides.length == 1
+            ? 'Je me permets de vous contacter au sujet du versement de ${labels.first} '
+                'dont je bénéficie (ou auquel je pense avoir droit).'
+            : 'Je me permets de vous contacter au sujet du versement des prestations suivantes '
+                'dont je bénéficie (ou auxquelles je pense avoir droit) : $labelsStr.';
 
-    final corps =
-        'Sur la base des barèmes officiels en vigueur au 1er avril 2026 ($ref), '
-        'le montant théorique de $aideLabel auquel j\'ai droit s\'élève à '
-        '${montantTheorique.toStringAsFixed(2)}\u20AC/mois.\n\n'
-        'Or, le montant actuellement versé est de ${montantPercu.toStringAsFixed(2)}\u20AC/mois, '
-        'soit un écart de ${ecartMensuel.toStringAsFixed(2)}\u20AC/mois '
-        '(${ecartAnnuel.toStringAsFixed(0)}\u20AC/an).\n\n'
-        'Je vous demande donc de bien vouloir :\n'
-        '1. Réexaminer le calcul de mes droits à $aideLabel ;\n'
-        '2. Corriger le montant versé à compter du prochain versement ;\n'
-        '3. Procéder, le cas échéant, au rappel des sommes dues.';
+    // Détail par aide
+    final detailsBuffer = StringBuffer();
+    for (var i = 0; i < aides.length; i++) {
+      final aide = aides[i];
+      final label = labels[i];
+      final montantTheorique = montantsParAide[aide] ?? 0.0;
+      final ecartMensuel = widget.ecart.ecarts[aide] ?? 0.0;
+      final montantPercu = montantTheorique - ecartMensuel;
+      final ref = refsLegales[aide] ?? 'barèmes officiels 2026';
+
+      if (aides.length > 1 && i > 0) detailsBuffer.write('\n\n');
+      detailsBuffer.write(
+          'Concernant $label ($ref) : '
+          'le montant théorique auquel j\'ai droit s\'élève à '
+          '${montantTheorique.toStringAsFixed(2)}\u20AC/mois. '
+          'Or, le montant actuellement versé est de ${montantPercu.toStringAsFixed(2)}\u20AC/mois, '
+          'soit un écart de ${ecartMensuel.toStringAsFixed(2)}\u20AC/mois.');
+    }
+
+    final totalStr = aides.length > 1
+        ? '\n\nAu total, l\'écart constaté s\'élève à ${ecartTotalMensuel.toStringAsFixed(2)}\u20AC/mois, '
+            'soit ${(ecartTotalMensuel * 12).toStringAsFixed(0)}\u20AC/an.'
+        : '\n\nSoit un écart annuel de ${(ecartTotalMensuel * 12).toStringAsFixed(0)}\u20AC.';
+
+    final demandes = aides.length == 1
+        ? 'Je vous demande donc de bien vouloir :\n'
+            '1. Réexaminer le calcul de mes droits à ${labels.first} ;\n'
+            '2. Corriger le montant versé à compter du prochain versement ;\n'
+            '3. Procéder, le cas échéant, au rappel des sommes dues.'
+        : 'Je vous demande donc de bien vouloir :\n'
+            '1. Réexaminer le calcul de mes droits aux prestations mentionnées ci-dessus ;\n'
+            '2. Corriger les montants versés à compter du prochain versement ;\n'
+            '3. Procéder, le cas échéant, au rappel des sommes dues.';
 
     return '''$nom
 $adresse$tel$email
@@ -425,7 +475,9 @@ Madame, Monsieur,
 
 $intro
 
-$corps
+$detailsBuffer$totalStr
+
+$demandes
 
 Je reste à votre disposition pour tout complément d\'information et vous transmettrai tout justificatif utile à l\'instruction de ma demande.
 
@@ -553,12 +605,7 @@ class _LetterPreviewScreenState extends State<_LetterPreviewScreen> {
 
       final bytes = await doc.save();
       if (kIsWeb) {
-        final base64Str = base64Encode(bytes);
-        final dataUrl = 'data:application/pdf;base64,$base64Str';
-        final anchor = _jsCreateElement('a');
-        anchor.href = dataUrl;
-        anchor.download = 'courrier_caf_alloccheck.pdf';
-        anchor.click();
+        downloadPdfWeb(bytes, 'courrier_caf_alloccheck.pdf');
       } else {
         await Printing.sharePdf(
           bytes: bytes,

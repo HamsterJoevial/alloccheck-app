@@ -1,25 +1,16 @@
-import 'dart:convert';
-import 'dart:js_interop';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/models/droits_result.dart';
 import '../../../core/models/situation.dart';
 import '../../../core/services/calcul_local_service.dart';
 import '../../../core/services/payment_service.dart';
 import '../../../core/theme/app_theme.dart';
-
-@JS('document.createElement')
-external JSObject _jsCreateElementResult(String tag);
-
-extension _JSObjectResult on JSObject {
-  external set href(String value);
-  external set download(String value);
-  external void click();
-}
+import '../../../core/utils/web_download_bridge.dart';
 
 /// Écran de résultats — affiche les droits calculés et l'écart
 class ResultsScreen extends StatefulWidget {
@@ -69,156 +60,334 @@ class _ResultsScreenState extends State<ResultsScreen> {
     if (response == null) return;
     setState(() => _exportingRapportPdf = true);
     try {
+      // ─── Polices (supportent €, accents, tirets) ───────────────────────────
+      final fontRegular = await PdfGoogleFonts.robotoRegular();
+      final fontBold = await PdfGoogleFonts.robotoBold();
+      final fontItalic = await PdfGoogleFonts.robotoItalic();
+
       final doc = pw.Document();
       final now = DateTime.now();
-      final dateStr =
-          '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
+      final dateStr = '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
       final droits = response.droits;
       final ecart = response.ecart;
+      final s = widget.situation;
 
-      final aideKeys = ['rsa', 'apl', 'prime_activite', 'af', 'aah', 'cmg', 'paje', 'cf', 'prepare', 'ars'];
+      const green = PdfColor.fromInt(0xFF059669);
+      const red = PdfColors.red700;
+
+      final aideKeys = ['rsa', 'apl', 'prime_activite', 'af', 'aah', 'mva', 'asf', 'cmg', 'paje', 'cf', 'prepare', 'ars'];
       final aidesActives = aideKeys
           .where((k) => _getAideMontant(droits, k) > 0 || (ecart?.ecarts[k] ?? 0) > 0)
           .toList();
+      final aidesNonReclamees = aideKeys
+          .where((k) => _getAideMontant(droits, k) > 0 && (s.montantPercu[k] ?? 0) == 0)
+          .toList();
+      // Aides avec écart — pour éviter la duplication en section 3
+      final aidesAvecEcart = aideKeys
+          .where((k) => (ecart?.ecarts[k] ?? 0) > 0)
+          .toSet();
 
+      // Labels lisibles pour les enums
+      final zoneLabel = {'zone_1': 'Zone 1 (Paris/IDF)', 'zone_2': 'Zone 2', 'zone_3': 'Zone 3'}[s.zoneLogement.value] ?? s.zoneLogement.value;
+      final statutLogLabel = {'locataire': 'Locataire', 'proprietaire': 'Propriétaire', 'heberge': 'Hébergé(e)'}[s.statutLogement.value] ?? s.statutLogement.value;
+
+      // ─── Helpers ───────────────────────────────────────────────────────────
+      pw.TextStyle ts(double size, {bool bold = false, bool italic = false, PdfColor? color}) =>
+        pw.TextStyle(
+          font: bold ? fontBold : (italic ? fontItalic : fontRegular),
+          fontSize: size,
+          color: color,
+        );
+
+      pw.Widget section(String title) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.SizedBox(height: 18),
+          pw.Text(title, style: ts(13, bold: true)),
+          pw.Divider(color: PdfColors.grey400, thickness: 0.7),
+          pw.SizedBox(height: 6),
+        ],
+      );
+
+      pw.Widget infoRow(String label, String value, {bool bold = false, PdfColor? color}) =>
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(vertical: 2),
+          child: pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.SizedBox(
+                width: 190,
+                child: pw.Text(label, style: ts(10, color: PdfColors.grey700)),
+              ),
+              pw.Expanded(
+                child: pw.Text(value, style: ts(10, bold: bold, color: color)),
+              ),
+            ],
+          ),
+        );
+
+      pw.Widget aideBlock(String key) {
+        final montant = _getAideMontant(droits, key);
+        final percu = s.montantPercu[key] ?? 0;
+        final ecartMontant = ecart?.ecarts[key] ?? 0;
+        final label = AppTheme.aideLabels[key] ?? key;
+        final detail = droits.details[key] ?? '';
+        final nonReclame = montant > 0 && percu == 0;
+
+        return pw.Container(
+          margin: const pw.EdgeInsets.only(bottom: 12),
+          padding: const pw.EdgeInsets.all(10),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(
+              color: ecartMontant > 0 ? PdfColors.red300 : (nonReclame ? PdfColors.orange300 : PdfColors.grey300),
+              width: ecartMontant > 0 ? 1.0 : 0.6,
+            ),
+            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+            color: ecartMontant > 0 ? PdfColors.red50 : PdfColors.white,
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(label, style: ts(11, bold: true)),
+                  pw.Row(children: [
+                    pw.Text('${montant.toStringAsFixed(2)} \u20AC/mois',
+                      style: ts(11, bold: true, color: green)),
+                    if (ecartMontant > 0) ...[
+                      pw.SizedBox(width: 8),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: const pw.BoxDecoration(
+                          color: PdfColors.red700,
+                          borderRadius: pw.BorderRadius.all(pw.Radius.circular(3)),
+                        ),
+                        child: pw.Text('Ecart : +${ecartMontant.toStringAsFixed(0)} \u20AC',
+                          style: ts(9, bold: true, color: PdfColors.white)),
+                      ),
+                    ],
+                    if (nonReclame && ecartMontant == 0) ...[
+                      pw.SizedBox(width: 8),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: const pw.BoxDecoration(
+                          color: PdfColors.orange700,
+                          borderRadius: pw.BorderRadius.all(pw.Radius.circular(3)),
+                        ),
+                        child: pw.Text('Non reclamee',
+                          style: ts(9, color: PdfColors.white)),
+                      ),
+                    ],
+                  ]),
+                ],
+              ),
+              if (percu > 0) ...[
+                pw.SizedBox(height: 3),
+                pw.Text('Montant percu declare : ${percu.toStringAsFixed(2)} \u20AC/mois',
+                  style: ts(9.5, color: PdfColors.grey600)),
+              ],
+              if (detail.isNotEmpty) ...[
+                pw.SizedBox(height: 6),
+                pw.Container(
+                  width: double.infinity,
+                  padding: const pw.EdgeInsets.all(8),
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('Detail du calcul :', style: ts(9, bold: true, color: PdfColors.grey600)),
+                      pw.SizedBox(height: 3),
+                      pw.Text(detail, style: ts(9, color: PdfColors.grey800)),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      }
+
+      // ─── Situation en clair ────────────────────────────────────────────────
+      String enfantsStr = s.nombreEnfants == 0
+          ? 'Aucun'
+          : '${s.nombreEnfants} enfant(s)'
+            + (s.agesEnfants.isNotEmpty ? ' (${s.agesEnfants.map((a) => '$a ans').join(', ')})' : '');
+
+      String logementStr = statutLogLabel;
+      if (s.loyerMensuel > 0) logementStr += ' - loyer ${s.loyerMensuel.toStringAsFixed(0)} \u20AC/mois';
+      logementStr += ' - $zoneLabel';
+
+      String revenusStr = s.revenuActiviteDemandeur == 0
+          ? 'Aucun revenu d\'activité'
+          : '${s.revenuActiviteDemandeur.toStringAsFixed(0)} €/mois'
+            + (s.sourceRevenuDemandeur != null ? ' (${s.sourceRevenuDemandeur!.label})' : '');
+
+      final autresRev = s.autresRevenus.where((r) => r.montantMensuel > 0).toList();
+
+      // ─── Construction du document ──────────────────────────────────────────
       doc.addPage(
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
           margin: const pw.EdgeInsets.fromLTRB(50, 45, 50, 45),
-          build: (context) => [
-            // ── En-tête ──────────────────────────────────────────────────
+          header: (ctx) => pw.Column(children: [
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
-                pw.Text('AllocCheck', style: pw.TextStyle(
-                  fontSize: 18,
-                  fontWeight: pw.FontWeight.bold,
-                  color: const PdfColor.fromInt(0xFF059669),
-                )),
-                pw.Text('Rapport du $dateStr', style: pw.TextStyle(
-                  fontSize: 10,
-                  color: PdfColors.grey600,
-                )),
+                pw.Text('AllocCheck', style: ts(16, bold: true, color: green)),
+                pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+                  pw.Text('Rapport d\'analyse des droits CAF', style: ts(9, color: PdfColors.grey600)),
+                  pw.Text('Genere le $dateStr - Baremes avril 2026', style: ts(9, color: PdfColors.grey600)),
+                ]),
               ],
             ),
-            pw.SizedBox(height: 4),
-            pw.Text('Analyse de vos droits CAF', style: pw.TextStyle(
-              fontSize: 12,
-              color: PdfColors.grey700,
-            )),
             pw.Divider(color: PdfColors.grey300, thickness: 0.5),
-            pw.SizedBox(height: 8),
+          ]),
+          footer: (ctx) => pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text('AllocCheck - alloccheck.flowforges.fr', style: ts(8, color: PdfColors.grey500)),
+              pw.Text('Page ${ctx.pageNumber}/${ctx.pagesCount}', style: ts(8, color: PdfColors.grey500)),
+            ],
+          ),
+          build: (context) => [
 
-            // ── Résumé ───────────────────────────────────────────────────
-            pw.Text('Résumé', style: pw.TextStyle(
-              fontSize: 13,
-              fontWeight: pw.FontWeight.bold,
-            )),
-            pw.SizedBox(height: 8),
+            // ══ RÉSUMÉ EXÉCUTIF ══════════════════════════════════════════════
             pw.Container(
-              padding: const pw.EdgeInsets.all(12),
+              padding: const pw.EdgeInsets.all(14),
               decoration: pw.BoxDecoration(
-                color: PdfColors.grey100,
+                color: const PdfColor.fromInt(0xFFECFDF5),
+                border: pw.Border.all(color: green, width: 0.8),
                 borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
               ),
-              child: pw.Column(
-                children: [
-                  _pdfRow('Droits théoriques estimés', '${droits.total.toStringAsFixed(0)} €/mois', bold: true),
-                  if (ecart != null && ecart.ecartTotal > 0) ...[
-                    pw.SizedBox(height: 4),
-                    _pdfRow(
-                      'Manque à toucher',
-                      '${ecart.ecartTotal.toStringAsFixed(0)} €/mois',
-                      bold: true,
-                      valueColor: PdfColors.red700,
-                    ),
-                    pw.SizedBox(height: 4),
-                    _pdfRow(
-                      'Soit par an',
-                      '${(ecart.ecartTotal * 12).toStringAsFixed(0)} €/an',
-                      valueColor: PdfColors.red700,
-                    ),
-                  ] else if (ecart != null) ...[
-                    pw.SizedBox(height: 4),
-                    _pdfRow('Statut', 'Droits à jour — aucun écart détecté',
-                        valueColor: const PdfColor.fromInt(0xFF059669)),
-                  ],
+              child: pw.Column(children: [
+                infoRow('Droits theoriques mensuels estimes :', '${droits.total.toStringAsFixed(2)} \u20AC/mois', bold: true, color: green),
+                if (ecart != null && ecart.ecartTotal > 0) ...[
+                  pw.SizedBox(height: 4),
+                  infoRow('Manque a toucher :', '${ecart.ecartTotal.toStringAsFixed(2)} \u20AC/mois', bold: true, color: red),
+                  infoRow('Soit sur 12 mois :', '${(ecart.ecartTotal * 12).toStringAsFixed(0)} \u20AC non percus', bold: false, color: red),
+                ] else if (ecart != null) ...[
+                  pw.SizedBox(height: 4),
+                  infoRow('Statut :', 'Aucun ecart detecte - droits a jour', bold: false, color: green),
                 ],
+                if (aidesNonReclamees.isNotEmpty) ...[
+                  pw.SizedBox(height: 4),
+                  infoRow('Aides non reclamees :', aidesNonReclamees.map((k) => AppTheme.aideLabels[k] ?? k).join(', '), bold: false, color: PdfColors.orange800),
+                ],
+              ]),
+            ),
+
+            // ══ SITUATION DÉCLARÉE ════════════════════════════════════════════
+            section('1. Situation declaree'),
+            infoRow('Statut conjugal :', s.statutConjugal.label),
+            infoRow('Enfants a charge :', enfantsStr),
+            if (s.gardeAlternee) infoRow('Mode de garde :', 'Garde alternee'),
+            infoRow('Logement :', logementStr),
+            if (s.logementConventionne != null)
+              infoRow('Logement conventionne :', s.logementConventionne! ? 'Oui (APL)' : 'Non (ALS/ALF)'),
+            infoRow('Revenus d\'activite (demandeur) :', revenusStr),
+            if (s.situationFamiliale == SituationFamiliale.couple && s.revenuActiviteConjoint > 0)
+              infoRow('Revenus d\'activite (conjoint) :', '${s.revenuActiviteConjoint.toStringAsFixed(0)} \u20AC/mois'),
+            if (autresRev.isNotEmpty)
+              infoRow('Autres revenus :', autresRev.map((r) => '${r.type.label} : ${r.montantMensuel.toStringAsFixed(0)} \u20AC').join(' | ')),
+            if (s.pensionAlimentaireVersee > 0)
+              infoRow('Pension alimentaire versee :', '${s.pensionAlimentaireVersee.toStringAsFixed(0)} \u20AC/mois (deduite des ressources)'),
+            if (s.pensionAlimentaireNonPercue)
+              infoRow('Pension non percue :', 'Oui - ouvre droit a l\'ASF'),
+            if (s.tauxHandicap != null && s.tauxHandicap! > 0) ...[
+              infoRow('Taux d\'incapacite reconnu :', '${s.tauxHandicap}%'),
+              infoRow('Situation de vie (handicap) :', s.situationVie.label),
+              if (s.besoinTiercePersonne) infoRow('Aide humaine quotidienne :', 'Oui'),
+            ],
+            if (s.congeParental != CongeParental.aucun)
+              infoRow('Conge parental :', s.congeParental == CongeParental.tauxPlein ? 'Temps plein' : 'Mi-temps'),
+
+            // ══ AIDES AVEC ÉCART ══════════════════════════════════════════════
+            if (ecart != null && ecart.ecartTotal > 0) ...[
+              section('2. Aides avec ecart detecte'),
+              pw.Text(
+                'Les aides ci-dessous presentent un ecart entre le montant theorique calcule et le montant que vous percevez. Ces calculs sont effectues sur la base des baremes officiels en vigueur (Decrets 2026-220 a 2026-229).',
+                style: ts(9.5, color: PdfColors.grey700),
               ),
-            ),
-            pw.SizedBox(height: 20),
+              pw.SizedBox(height: 10),
+              ...aideKeys
+                .where((k) => (ecart.ecarts[k] ?? 0) > 0)
+                .map((k) => aideBlock(k)),
+            ],
 
-            // ── Détail par aide ──────────────────────────────────────────
-            pw.Text('Détail par aide', style: pw.TextStyle(
-              fontSize: 13,
-              fontWeight: pw.FontWeight.bold,
-            )),
-            pw.SizedBox(height: 8),
-            pw.Table(
-              border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
-              columnWidths: {
-                0: const pw.FlexColumnWidth(2.5),
-                1: const pw.FlexColumnWidth(1.5),
-                2: const pw.FlexColumnWidth(1.5),
-              },
-              children: [
-                // Header
-                pw.TableRow(
-                  decoration: const pw.BoxDecoration(color: PdfColors.grey200),
-                  children: [
-                    _pdfCell('Aide', header: true),
-                    _pdfCell('Montant théorique', header: true),
-                    _pdfCell('Écart', header: true),
-                  ],
-                ),
-                // Rows
-                ...aidesActives.map((k) {
-                  final montant = _getAideMontant(droits, k);
-                  final ecartMontant = ecart?.ecarts[k] ?? 0;
-                  final label = AppTheme.aideLabels[k] ?? k;
-                  return pw.TableRow(children: [
-                    _pdfCell(label),
-                    _pdfCell('${montant.toStringAsFixed(0)} €'),
-                    _pdfCell(
-                      ecartMontant > 0 ? '+${ecartMontant.toStringAsFixed(0)} €' : '—',
-                      color: ecartMontant > 0 ? PdfColors.red700 : PdfColors.grey600,
-                    ),
-                  ]);
-                }),
-              ],
+            // ══ DROITS CALCULÉS — DÉTAIL COMPLET (sans duplication) ══════════
+            section('${ecart != null && ecart.ecartTotal > 0 ? "3" : "2"}. Detail complet des droits calcules'),
+            pw.Text(
+              'Chaque aide est calculee individuellement sur la base de votre situation declaree. Les formules et references legales applicables sont indiquees pour chaque aide.',
+              style: ts(9.5, color: PdfColors.grey700),
             ),
+            pw.SizedBox(height: 10),
+            // N'afficher ici QUE les aides sans ecart (les autres sont deja en section 2)
+            ...aidesActives.where((k) => !aidesAvecEcart.contains(k)).map((k) => aideBlock(k)),
 
-            if (response.suggestions.isNotEmpty) ...[
-              pw.SizedBox(height: 20),
-              pw.Text('Aides méconnues selon votre profil', style: pw.TextStyle(
-                fontSize: 13,
-                fontWeight: pw.FontWeight.bold,
-              )),
+            // ══ AIDES NON RÉCLAMÉES ═══════════════════════════════════════════
+            if (aidesNonReclamees.isNotEmpty) ...[
+              section('${ecart != null && ecart.ecartTotal > 0 ? "4" : "3"}. Aides non reclamees'),
+              pw.Text(
+                'Les aides suivantes semblent dues selon votre profil mais n\'ont pas ete declarees comme percues. Rapprochez-vous de votre CAF pour verifier votre dossier.',
+                style: ts(9.5, color: PdfColors.grey700),
+              ),
               pw.SizedBox(height: 8),
-              ...response.suggestions.map((s) => pw.Padding(
-                padding: const pw.EdgeInsets.only(bottom: 8),
+              ...aidesNonReclamees.map((k) => pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 4),
+                child: pw.Row(children: [
+                  pw.Text('- ${AppTheme.aideLabels[k] ?? k} : ',
+                    style: ts(10, bold: true)),
+                  pw.Text('${_getAideMontant(droits, k).toStringAsFixed(2)} \u20AC/mois estimes',
+                    style: ts(10, color: PdfColors.orange800)),
+                ]),
+              )),
+            ],
+
+            // ══ AIDES MÉCONNUES ════════════════════════════════════════════════
+            if (response.suggestions.isNotEmpty) ...[
+              section('Aides complementaires selon votre profil'),
+              ...response.suggestions.map((sug) => pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 10),
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text('• ${s.titre}', style: pw.TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: pw.FontWeight.bold,
-                    )),
-                    pw.Text('  ${s.description}',
-                        style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
-                    pw.Text('  Contact : ${s.source}',
-                        style: pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
+                    pw.Text('> ${sug.titre}', style: ts(10.5, bold: true)),
+                    pw.Text('  ${sug.description}', style: ts(9.5, color: PdfColors.grey700)),
+                    pw.Text('  Contact : ${sug.source}', style: ts(9, color: PdfColors.grey600)),
                   ],
                 ),
               )),
             ],
 
-            pw.SizedBox(height: 20),
+            // ══ SOURCES LÉGALES ════════════════════════════════════════════════
+            section('Sources et references legales'),
+            pw.Text(
+              'Ce rapport est etabli sur la base des baremes officiels en vigueur au 1er avril 2026 (Decrets n 2026-220 a 2026-229 du 30/03/2026). '
+              'Les montants sont des estimations - le calcul definitif appartient a la CAF, qui peut tenir compte d\'elements non renseignes dans ce simulateur.\n\n'
+              'References applicables a votre simulation :',
+              style: ts(9, color: PdfColors.grey700),
+            ),
+            pw.SizedBox(height: 6),
+            ...aidesActives.map((k) {
+              final detail = droits.details[k] ?? '';
+              final refs = RegExp(r'\[([^\]]+)\]').allMatches(detail).map((m) => m.group(1)!).toList();
+              if (refs.isEmpty) return pw.SizedBox();
+              return pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 3),
+                child: pw.Text(
+                  '${AppTheme.aideLabels[k] ?? k} : ${refs.join(' - ')}',
+                  style: ts(9, color: PdfColors.grey700),
+                ),
+              );
+            }),
+
+            pw.SizedBox(height: 16),
             pw.Divider(color: PdfColors.grey300, thickness: 0.5),
             pw.SizedBox(height: 4),
             pw.Text(
               AppConstants.calculDisclaimer,
-              style: pw.TextStyle(fontSize: 8.5, color: PdfColors.grey600),
+              style: ts(8, color: PdfColors.grey500),
             ),
           ],
         ),
@@ -226,15 +395,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
       final bytes = await doc.save();
       if (kIsWeb) {
-        final base64Str = base64Encode(bytes);
-        final dataUrl = 'data:application/pdf;base64,$base64Str';
-        final anchor = _jsCreateElementResult('a');
-        anchor.href = dataUrl;
-        anchor.download = 'rapport_alloccheck.pdf';
-        anchor.click();
+        downloadPdfWeb(bytes, 'rapport_alloccheck_${now.millisecondsSinceEpoch}.pdf');
       } else {
         // ignore: deprecated_member_use
-        final _ = bytes; // non utilisé hors web pour l'instant
+        final _ = bytes;
       }
     } catch (e) {
       if (mounted) {
@@ -259,39 +423,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
       case 'cf': return droits.cf;
       case 'prepare': return droits.prepare;
       case 'ars': return droits.ars;
+      case 'mva': return droits.mva;
+      case 'asf': return droits.asf;
       default: return 0;
     }
-  }
-
-  pw.Widget _pdfRow(String label, String value, {bool bold = false, PdfColor? valueColor}) {
-    return pw.Row(
-      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-      children: [
-        pw.Text(label, style: pw.TextStyle(
-          fontSize: 10.5,
-          fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
-        )),
-        pw.Text(value, style: pw.TextStyle(
-          fontSize: 10.5,
-          fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
-          color: valueColor,
-        )),
-      ],
-    );
-  }
-
-  pw.Widget _pdfCell(String text, {bool header = false, PdfColor? color}) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      child: pw.Text(
-        text,
-        style: pw.TextStyle(
-          fontSize: 10,
-          fontWeight: header ? pw.FontWeight.bold : pw.FontWeight.normal,
-          color: color,
-        ),
-      ),
-    );
   }
 
   Future<void> _loadUnlockStatus() async {
@@ -409,7 +544,36 @@ class _ResultsScreenState extends State<ResultsScreen> {
           else
             _buildTotalCard(response.droits, response.ecart != null),
 
-          // CTA ancré — visible immédiatement après le chiffre d'écart
+          // Teaser aides non réclamées (visible en gratuit)
+          if (!_isUnlocked && response.ecart != null && response.ecart!.aidesNonReclamees.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppTheme.error.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppTheme.error.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.new_releases, color: AppTheme.error, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${response.ecart!.aidesNonReclamees.length} aide(s) que vous ne percevez pas et auxquelles vous avez droit',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.error,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // CTA ancré
           if (!_isUnlocked) ...[
             const SizedBox(height: 16),
             _buildEarlyCta(),
@@ -422,6 +586,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
             // Bannière code d'accès (uniquement au premier déverrouillage)
             if (_justUnlocked) ...[
               _buildAccessCodeBanner(),
+              const SizedBox(height: 20),
+            ],
+
+            if (response.ecart != null && response.ecart!.aidesNonReclamees.isNotEmpty) ...[
+              _buildAidesNonReclameesSection(response.ecart!.aidesNonReclamees, response.droits),
               const SizedBox(height: 20),
             ],
 
@@ -477,6 +646,77 @@ class _ResultsScreenState extends State<ResultsScreen> {
             _buildLockedSection(),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildAidesNonReclameesSection(List<String> aides, DroitsResult droits) {
+    return Card(
+      color: AppTheme.error.withValues(alpha: 0.04),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppTheme.error.withValues(alpha: 0.3)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.new_releases, color: AppTheme.error, size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Aides non réclamées',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: AppTheme.error,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Vous êtes éligible à ces aides mais ne les percevez pas. Faites-en la demande auprès de votre CAF.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            ...aides.map((aide) {
+              final label = AppTheme.aideLabels[aide] ?? aide;
+              final montant = _getAideMontant(droits, aide);
+              final icon = AppTheme.aideIcons[aide] ?? Icons.euro;
+              final color = AppTheme.aideColors[aide] ?? AppTheme.primary;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: color.withValues(alpha: 0.1),
+                      radius: 16,
+                      child: Icon(icon, color: color, size: 16),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                    ),
+                    Text(
+                      '+${montant.toStringAsFixed(0)} €/mois',
+                      style: TextStyle(
+                        color: AppTheme.error,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
       ),
     );
   }
@@ -895,6 +1135,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
           ),
         ),
         const SizedBox(height: 8),
+        _buildLegalConsentText(),
+        const SizedBox(height: 8),
         // Signal de confiance
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -931,6 +1173,53 @@ class _ResultsScreenState extends State<ResultsScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildLegalConsentText() {
+    return Text.rich(
+      TextSpan(
+        style: Theme.of(context)
+            .textTheme
+            .bodySmall
+            ?.copyWith(color: AppTheme.textSecondary, fontSize: 10),
+        children: [
+          const TextSpan(text: 'En payant, vous acceptez nos '),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: GestureDetector(
+              onTap: () => Navigator.of(context).pushNamed('/terms'),
+              child: Text(
+                'CGU',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontSize: 10,
+                      color: AppTheme.textSecondary,
+                      decoration: TextDecoration.underline,
+                    ),
+              ),
+            ),
+          ),
+          const TextSpan(text: ' et notre '),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: GestureDetector(
+              onTap: () => Navigator.of(context).pushNamed('/privacy'),
+              child: Text(
+                'politique de confidentialité',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontSize: 10,
+                      color: AppTheme.textSecondary,
+                      decoration: TextDecoration.underline,
+                    ),
+              ),
+            ),
+          ),
+          const TextSpan(text: '.'),
+        ],
+      ),
+      textAlign: TextAlign.center,
     );
   }
 
@@ -1219,6 +1508,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
       'cf': droits.cf,
       'prepare': droits.prepare,
       'ars': droits.ars,
+      'mva': droits.mva,
+      'asf': droits.asf,
     };
 
     return aides.entries.where((e) => e.value > 0 || (ecart?.ecarts[e.key] ?? 0) != 0).map((entry) {
