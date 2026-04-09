@@ -94,9 +94,9 @@ void main() {
       // AF : 2 enfants, 0 revenus → 153.01€
       expect(result.droits.af, 153.01);
 
-      // RSA > 0 : parent isolé, 2 enfants, 0 revenus
-      // Note : ASF est comptée comme ressource dans le RSA
-      expect(result.droits.rsa, greaterThan(0));
+      // RSA parent isolé 2 enfants hébergé = 651.69×(1.28412+2×0.42804) - 192.02 = 1202.52€
+      // ASF exclue des ressources RSA (prestation familiale — art. R262-11 al.4 CASF)
+      expect(result.droits.rsa, closeTo(1202.52, 1.0));
     });
 
     // ============================================================
@@ -118,8 +118,8 @@ void main() {
       // ASF : 1 enfant × 200.78 = 200.78€ (pension non versée)
       expect(result.droits.asf, closeTo(200.78, 0.02));
 
-      // RSA > 0 : parent isolé, 0 revenus
-      expect(result.droits.rsa, greaterThan(0));
+      // RSA parent isolé 1 enfant hébergé = 651.69×(1.28412+0.42804) - 155.16 = 960.47€
+      expect(result.droits.rsa, closeTo(960.47, 1.0));
 
       // Pas d'AAH (pas de handicap)
       expect(result.droits.aah, 0);
@@ -148,9 +148,10 @@ void main() {
       // PreParE : taux plein = 459.69€
       expect(result.droits.prepare, closeTo(459.69, 0.02));
 
-      // ARS : enfant 6 ans = 426.87€/an ÷ 12 = 35.57€/mois (équivalent mensuel)
+      // ARS : enfant 6 ans = 403.72€/an ÷ 12 = 33.64€/mois (équivalent mensuel)
+      // Barèmes août 2025, en vigueur jusqu'à août 2026 (revalorisation ARS annuelle en août)
       expect(result.droits.ars, greaterThan(0));
-      expect(result.droits.ars, closeTo(35.57, 0.05));
+      expect(result.droits.ars, closeTo(33.64, 0.05));
 
       // RSA > 0 : couple sans revenus
       expect(result.droits.rsa, greaterThan(0));
@@ -226,8 +227,8 @@ void main() {
       // RSA = 651.69 + 0.62×800 - 800 - 77.58 = 270.11€
       expect(result.droits.rsa, closeTo(270.11, 1.0));
 
-      // Prime activité > 0 car revenus d'activité
-      expect(result.droits.primeActivite, greaterThan(0));
+      // Prime = 638.28 + 0.5985×800 + 23.02 (bonification) - 800 - 77.58 = 262.52€
+      expect(result.droits.primeActivite, closeTo(262.52, 1.0));
 
       // Pas d'AAH
       expect(result.droits.aah, 0);
@@ -287,10 +288,9 @@ void main() {
       // Prime activité > 0 : les deux travaillent
       expect(result.droits.primeActivite, greaterThan(0));
 
-      // RSA > 0 : bonification 62% → RSA = 977.54 + 0.62×2100 - 2100 - forfait_logement
-      // Le moteur calcule un RSA positif avec la bonification pour revenus modestes
-      // TODO: vérifier — logiquement un couple à 2100€/mois devrait ne pas toucher le RSA
-      expect(result.droits.rsa, greaterThanOrEqualTo(0));
+      // RSA > 0 : couple + 2 enfants → forfaitaire = 1368.56€, plafond sortie RSA = 3096€/mois
+      // À 2100€, RSA = 1368.56 + 0.62×2100 - 2100 - 192.02 = 378.54€ — conforme formule officielle
+      expect(result.droits.rsa, closeTo(378.54, 2.0));
 
       // Pas d'AAH ni MVA (pas de handicap)
       expect(result.droits.aah, 0);

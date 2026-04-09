@@ -970,8 +970,11 @@ class CalculLocalService {
 
   // ============================================================
   // ARS — Art. L543-1 CSS — Allocation de Rentrée Scolaire
-  // Barèmes 2026 : 403,72€ (6-10 ans) / 424,95€ (11-14 ans) / 440,65€ (15-18 ans)
-  // Plafonds RFR 2026 : 25 336€ (isolé 1 enfant) / 32 267€ (couple 1 enfant) +8 153€/enfant
+  // Barèmes août 2025 (en vigueur jusqu'à août 2026 — revalorisation annuelle en août, pas en avril)
+  //   403,72€ (6-10 ans) / 424,95€ (11-14 ans) / 440,65€ (15-18 ans)
+  // Plafonds RFR 2026 (N-2 = 2024) :
+  //   Isolé   : 25 338€ + 5 841€/enfant au-delà du 1er
+  //   Couple  : 32 271€ + 5 841€/enfant au-delà du 1er
   // Note : versement annuel en août — affiché en équivalent mensuel (÷ 12)
   // ============================================================
 
@@ -981,22 +984,24 @@ class CalculLocalService {
     }
 
     final revenuAnnuel = (s.revenuActiviteDemandeur + s.revenuActiviteConjoint + s.totalAutresRevenus) * 12;
-    // Plafonds ARS 2026 : 22 274€ + 6 682€/enfant
-    final plafondTotal = 22274.0 + s.nombreEnfants * 6682.0;
+    // Plafonds ARS 2026 — distingue isolé et couple (art. D543-1 CSS)
+    final estCouple = s.situationFamiliale == SituationFamiliale.couple;
+    final plafondBase = estCouple ? 32271.0 : 25338.0;
+    final plafondTotal = plafondBase + (s.nombreEnfants - 1) * 5841.0;
 
     if (revenuAnnuel > plafondTotal) {
       return (0.0,
-          'ARS : revenus au-dessus du plafond (${revenuAnnuel.toStringAsFixed(0)}€ > ${plafondTotal.toStringAsFixed(0)}€). [Art. L543-1 CSS]');
+          'ARS : revenus au-dessus du plafond (${revenuAnnuel.toStringAsFixed(0)}\u20AC > ${plafondTotal.toStringAsFixed(0)}\u20AC). [Art. L543-1 CSS]');
     }
 
     double totalAnnuel = 0;
     for (final age in s.agesEnfants) {
       if (age >= 6 && age < 11) {
-        totalAnnuel += 426.87;
+        totalAnnuel += 403.72;
       } else if (age >= 11 && age < 15) {
-        totalAnnuel += 450.41;
+        totalAnnuel += 424.95;
       } else if (age >= 15 && age <= 18) {
-        totalAnnuel += 466.02;
+        totalAnnuel += 440.65;
       }
     }
 
@@ -1006,7 +1011,7 @@ class CalculLocalService {
 
     final mensuel = _arrondi(totalAnnuel / 12);
     return (mensuel,
-        'ARS : ${totalAnnuel.toStringAsFixed(0)}€/an (versé en août) = ${mensuel.toStringAsFixed(0)}€/mois équivalent. [Art. L543-1 CSS]');
+        'ARS : ${totalAnnuel.toStringAsFixed(0)}\u20AC/an (versé en août) = ${mensuel.toStringAsFixed(2)}\u20AC/mois équivalent. [Art. L543-1 CSS]');
   }
 
   EcartResult _calculerEcart(DroitsResult droits, Map<String, double> percu) {
