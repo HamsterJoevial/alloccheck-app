@@ -327,6 +327,88 @@ void main() {
     });
 
     // ============================================================
+    // PROFIL 13 — AEEH enfant 8 ans taux 70%
+    // Vérifie : AEEH versée pour 1 enfant, AF 1 enfant = 0 (min 2)
+    // ============================================================
+    test('P13 — Parent isolé 1 enfant (8 ans, taux 70%) — AEEH+RSA, PAJE=0', () {
+      final result = service.calculerDroits(Situation(
+        statutConjugal: StatutConjugal.celibataire,
+        nombreEnfants: 1,
+        agesEnfants: [8],
+        tauxHandicapEnfants: [70], // taux 70% → ≥ 50% → AEEH éligible
+        revenuActiviteDemandeur: 0,
+        zoneLogement: ZoneLogement.zone3,
+        loyerMensuel: 0,
+        statutLogement: StatutLogement.heberge,
+      ));
+
+      // AEEH : 1 enfant × 148.12 = 148.12€/mois
+      expect(result.droits.aeeh, closeTo(148.12, 0.02));
+
+      // PAJE : non cumulable avec AEEH → 0 (même si enfant < 3 ans ce n'est pas le cas ici)
+      expect(result.droits.paje, 0);
+
+      // RSA parent isolé 1 enfant hébergé
+      expect(result.droits.rsa, greaterThan(0));
+
+      // AF : seulement 1 enfant → 0
+      expect(result.droits.af, 0);
+    });
+
+    // ============================================================
+    // PROFIL 14 — AEEH prime sur PAJE (enfant 2 ans taux 60%)
+    // Vérifie : AEEH > 0, PAJE = 0 (non cumulable)
+    // ============================================================
+    test('P14 — Couple 1 enfant (2 ans, taux 60%) — AEEH, PAJE=0 (non cumulable)', () {
+      final result = service.calculerDroits(Situation(
+        statutConjugal: StatutConjugal.marie,
+        nombreEnfants: 1,
+        agesEnfants: [2],
+        tauxHandicapEnfants: [60], // taux 60% → AEEH éligible
+        revenuActiviteDemandeur: 0,
+        revenuActiviteConjoint: 0,
+        zoneLogement: ZoneLogement.zone3,
+        loyerMensuel: 0,
+        statutLogement: StatutLogement.heberge,
+      ));
+
+      // AEEH : 1 enfant < 20 ans, taux 60% ≥ 50%
+      expect(result.droits.aeeh, closeTo(148.12, 0.02));
+
+      // PAJE : non cumulable avec AEEH → 0 (malgré enfant de 2 ans < 3 ans)
+      expect(result.droits.paje, 0);
+      expect(result.droits.details['paje'], contains('AEEH'));
+    });
+
+    // ============================================================
+    // PROFIL 15 — AEEH 2 enfants dont 1 handicapé
+    // Vérifie : AEEH pour 1 seul enfant (l'autre taux < 50%)
+    // ============================================================
+    test('P15 — Couple 2 enfants (5 et 10 ans, taux 0% et 80%) — AEEH 1 enfant', () {
+      final result = service.calculerDroits(Situation(
+        statutConjugal: StatutConjugal.marie,
+        nombreEnfants: 2,
+        agesEnfants: [5, 10],
+        tauxHandicapEnfants: [0, 80], // enfant 5 ans non handicapé, enfant 10 ans taux 80%
+        revenuActiviteDemandeur: 0,
+        revenuActiviteConjoint: 0,
+        zoneLogement: ZoneLogement.zone3,
+        loyerMensuel: 0,
+        statutLogement: StatutLogement.heberge,
+      ));
+
+      // AEEH : 1 seul enfant éligible (taux 80%, 10 ans) → 148.12€
+      expect(result.droits.aeeh, closeTo(148.12, 0.02));
+
+      // PAJE : non cumulable avec AEEH → 0
+      // (même si un enfant < 3 ans était présent — ici aucun de toute façon)
+      expect(result.droits.paje, 0);
+
+      // AF : 2 enfants, 0 revenus → 153.01€
+      expect(result.droits.af, 153.01);
+    });
+
+    // ============================================================
     // PROFIL 12 — Personne handicapée en institution
     // Vérifie : AAH versée, MVA=0 (institution), RSA=0, APL=0
     // ============================================================

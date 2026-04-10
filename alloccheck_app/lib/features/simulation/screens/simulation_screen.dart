@@ -58,9 +58,13 @@ class _SimulationScreenState extends State<SimulationScreen> {
   CongeParental _congeParental = CongeParental.aucun;
   bool _gardeAlternee = false;
 
-  // Handicap
+  // Handicap demandeur
   bool _aHandicap = false;
   int _tauxHandicap = 80;
+
+  // Handicap enfants — AEEH
+  bool _aEnfantHandicap = false;
+  final List<int> _tauxHandicapEnfants = [];
 
   // Step 4 — Montants perçus (comparaison)
   bool _percevaitAAH = false; // case spéciale si handicap coché
@@ -77,6 +81,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
     'ars': false,
     'mva': false,
     'asf': false,
+    'aeeh': false,
   };
   final Map<String, TextEditingController> _percuControllers = {
     'rsa': TextEditingController(),
@@ -91,6 +96,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
     'ars': TextEditingController(),
     'mva': TextEditingController(),
     'asf': TextEditingController(),
+    'aeeh': TextEditingController(),
   };
 
   @override
@@ -267,6 +273,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
       tauxHandicap: _aHandicap ? _tauxHandicap : null,
       situationVie: _situationVie,
       besoinTiercePersonne: _besoinTiercePersonne,
+      tauxHandicapEnfants: _aEnfantHandicap ? List<int>.from(_tauxHandicapEnfants) : const [],
       modeGarde: _modeGarde,
       congeParental: _congeParental,
       gardeAlternee: _gardeAlternee,
@@ -380,6 +387,8 @@ class _SimulationScreenState extends State<SimulationScreen> {
                 _nombreEnfants = v;
                 while (_agesEnfants.length < v) { _agesEnfants.add(5); }
                 while (_agesEnfants.length > v) { _agesEnfants.removeLast(); }
+                while (_tauxHandicapEnfants.length < v) { _tauxHandicapEnfants.add(0); }
+                while (_tauxHandicapEnfants.length > v) { _tauxHandicapEnfants.removeLast(); }
               });
             },
           ),
@@ -402,6 +411,56 @@ class _SimulationScreenState extends State<SimulationScreen> {
                 ],
               ),
             )),
+          ],
+
+          // Handicap enfant(s) — AEEH
+          if (_nombreEnfants > 0) ...[
+            const SizedBox(height: 24),
+            _buildCheckTile(
+              'Un ou plusieurs enfants ont un handicap reconnu (MDPH)',
+              'Taux d\'incapacité reconnu par la MDPH — ouvre droit à l\'AEEH (148,12€/mois/enfant)',
+              _aEnfantHandicap,
+              (v) => setState(() {
+                _aEnfantHandicap = v;
+                if (!v) {
+                  for (int i = 0; i < _tauxHandicapEnfants.length; i++) {
+                    _tauxHandicapEnfants[i] = 0;
+                  }
+                }
+              }),
+            ),
+            if (_aEnfantHandicap) ...[
+              const SizedBox(height: 8),
+              _buildInfoBox(
+                'L\'AEEH (Allocation d\'Éducation de l\'Enfant Handicapé) est versée '
+                'pour chaque enfant de moins de 20 ans avec un taux MDPH ≥ 50%. '
+                'Elle n\'est pas cumulable avec la PAJE.',
+              ),
+              const SizedBox(height: 12),
+              ...List.generate(_nombreEnfants, (i) {
+                while (_tauxHandicapEnfants.length <= i) { _tauxHandicapEnfants.add(0); }
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle('Enfant ${i + 1} (${_agesEnfants[i]} ans) — Taux MDPH :'),
+                      const SizedBox(height: 6),
+                      _buildRadioList<int>(
+                        items: const [0, 50, 80],
+                        value: _tauxHandicapEnfants[i],
+                        labelBuilder: (v) => v == 0
+                            ? 'Non reconnu ou < 50%'
+                            : v == 50
+                                ? 'Entre 50% et 79%'
+                                : '80% ou plus',
+                        onChanged: (v) => setState(() => _tauxHandicapEnfants[i] = v),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
           ],
 
           // Pension alimentaire (divorcé / séparé)
@@ -632,6 +691,13 @@ class _SimulationScreenState extends State<SimulationScreen> {
             ),
             const SizedBox(height: 12),
           ],
+          if (_tauxHandicapEnfants.any((t) => t >= 50)) ...[
+            _buildInfoBox(
+              'L\'AEEH est calculée automatiquement à partir des taux MDPH des enfants. '
+              'Ne la ressaisissez pas ici.',
+            ),
+            const SizedBox(height: 12),
+          ],
 
           ..._filteredAutresRevenus().map((type) => _buildAutreRevenuTile(type)),
         ],
@@ -857,6 +923,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
             if (entry.key == 'ars' && !_agesEnfants.any((a) => a >= 6 && a <= 18)) return false;
             if (entry.key == 'mva' && !(_aHandicap && _tauxHandicap >= 80)) return false;
             if (entry.key == 'asf' && !(!_isCouple && _nombreEnfants > 0)) return false;
+            if (entry.key == 'aeeh' && !_tauxHandicapEnfants.any((t) => t >= 50)) return false;
             return true;
           }).map((entry) {
             final aide = entry.key;

@@ -75,7 +75,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       const green = PdfColor.fromInt(0xFF059669);
       const red = PdfColors.red700;
 
-      final aideKeys = ['rsa', 'apl', 'prime_activite', 'af', 'aah', 'mva', 'asf', 'cmg', 'paje', 'cf', 'prepare', 'ars'];
+      final aideKeys = ['rsa', 'apl', 'prime_activite', 'af', 'aah', 'mva', 'asf', 'aeeh', 'cmg', 'paje', 'cf', 'prepare', 'ars'];
       final aidesActives = aideKeys
           .where((k) => _getAideMontant(droits, k) > 0 || (ecart?.ecarts[k] ?? 0) > 0)
           .toList();
@@ -425,6 +425,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       case 'ars': return droits.ars;
       case 'mva': return droits.mva;
       case 'asf': return droits.asf;
+      case 'aeeh': return droits.aeeh;
       default: return 0;
     }
   }
@@ -1510,6 +1511,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       'ars': droits.ars,
       'mva': droits.mva,
       'asf': droits.asf,
+      'aeeh': droits.aeeh,
     };
 
     return aides.entries.where((e) => e.value > 0 || (ecart?.ecarts[e.key] ?? 0) != 0).map((entry) {

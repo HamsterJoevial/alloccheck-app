@@ -25,10 +25,14 @@ class Situation {
   final StatutLogement statutLogement;
   final bool? logementConventionne; // null=inconnu, true=APL, false=ALS/ALF
 
-  // Handicap
+  // Handicap demandeur
   final int? tauxHandicap;
   final SituationVie situationVie;
   final bool besoinTiercePersonne;
+
+  // Handicap enfants — AEEH (Art. L541-1 CSS)
+  // Index correspond à agesEnfants[i] — 0 = non reconnu, 50 = 50-79%, 80 = ≥80%
+  final List<int> tauxHandicapEnfants;
 
   // Garde et congé parental (CMG, PAJE, PreParE)
   final ModeGarde modeGarde;
@@ -56,6 +60,7 @@ class Situation {
     this.tauxHandicap,
     this.situationVie = SituationVie.autonome,
     this.besoinTiercePersonne = false,
+    this.tauxHandicapEnfants = const [],
     this.modeGarde = ModeGarde.aucun,
     this.congeParental = CongeParental.aucun,
     this.gardeAlternee = false,
@@ -74,6 +79,9 @@ class Situation {
   /// Dérivé automatiquement — plus de saisie manuelle
   bool get parentIsole =>
       situationFamiliale == SituationFamiliale.seul && nombreEnfants > 0;
+
+  /// Vrai si au moins un enfant a un taux MDPH ≥ 50% (éligible AEEH)
+  bool get aEnfantHandicape => tauxHandicapEnfants.any((t) => t >= 50);
 
   /// Total des autres revenus mensuels
   double get totalAutresRevenus =>
@@ -117,6 +125,7 @@ class Situation {
         'th': tauxHandicap,
         'sv': situationVie.name,
         'btp': besoinTiercePersonne,
+        'the': tauxHandicapEnfants,
         'mg': modeGarde.name,
         'cp': congeParental.name,
         'ga': gardeAlternee,
@@ -170,6 +179,7 @@ class Situation {
           ? SituationVie.values.firstWhere((e) => e.name == j['sv'])
           : SituationVie.autonome,
       besoinTiercePersonne: j['btp'] as bool? ?? false,
+      tauxHandicapEnfants: List<int>.from(j['the'] ?? []),
       modeGarde: j['mg'] != null
           ? ModeGarde.values.firstWhere((e) => e.name == j['mg'])
           : ModeGarde.aucun,

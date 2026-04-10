@@ -31,6 +31,7 @@ class AppTheme {
     'ars': Color(0xFFDC2626),
     'mva': Color(0xFF6D28D9),
     'asf': Color(0xFFEC4899),
+    'aeeh': Color(0xFF0EA5E9),
   };
 
   static const Map<String, String> aideLabels = {
@@ -46,6 +47,7 @@ class AppTheme {
     'ars': 'ARS (rentrée scolaire)',
     'mva': 'MVA (Vie Autonome)',
     'asf': 'ASF (Soutien Familial)',
+    'aeeh': 'AEEH (Enfant Handicapé)',
   };
 
   static const Map<String, IconData> aideIcons = {
@@ -61,6 +63,7 @@ class AppTheme {
     'ars': Icons.school,
     'mva': Icons.home_work,
     'asf': Icons.family_restroom,
+    'aeeh': Icons.accessible,
   };
 
   static ThemeData get lightTheme {

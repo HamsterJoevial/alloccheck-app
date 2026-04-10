@@ -174,6 +174,7 @@ class CalculLocalService {
     'mva': 'Art. L821-1-2 CSS — Décret n° 2026-229 du 30/03/2026',
 
     'asf': 'Art. L523-1 CSS — Barèmes 01/04/2026',
+    'aeeh': 'Art. L541-1 CSS — Décret n° 2026-229 du 30/03/2026',
     'als': 'Art. L831-1 CSS — Arrêté 5 sept. 2025 maintenu 2026',
     'alf': 'Art. L542-1 CSS — Arrêté 5 sept. 2025 maintenu 2026',
   };
@@ -188,6 +189,10 @@ class CalculLocalService {
 
   // --- ASF (Art. L523-1 CSS) ---
   static const double _asfMontantParEnfant = 200.78;
+
+  // --- AEEH base (Art. L541-1 CSS, Décret n° 2026-229) ---
+  // Montant de base — sans les compléments (6 catégories MDPH, hors périmètre ici)
+  static const double _aeehMontantBase = 148.12;
 
   // --- ALS/ALF (Art. L831-1 et L542-1 CSS — arrêté 5 sept 2025) ---
   // Depuis l'harmonisation de 2018, ALS et APL partagent les mêmes plafonds de loyer.
@@ -214,7 +219,9 @@ class CalculLocalService {
     final mva = _calculerMVA(situation, aahMontant: aah.$1, aplMontant: apl.$1);
     // 4. ASF (indépendant — parent isolé + pension non versée)
     final asf = _calculerASF(situation);
-    // 5. AF (indépendant)
+    // 5. AEEH (indépendant — enfant handicapé taux ≥ 50%) — AVANT PAJE (non cumulable)
+    final aeeh = _calculerAEEH(situation);
+    // 6. AF (indépendant)
     final af = _calculerAF(situation);
     // 6. RSA (AAH = ressource, pension versée déduite — art. R262-11 CASF)
     final rsa = _calculerRSA(situation, aahMensuel: aah.$1, percoitApl: apl.$1 > 0);
@@ -223,7 +230,8 @@ class CalculLocalService {
 
     // Aides famille
     final cmg = _calculerCMG(situation);
-    final paje = _calculerPAJE(situation);
+    // PAJE : non cumulable avec AEEH — on passe le montant AEEH pour arbitrage
+    final paje = _calculerPAJE(situation, aeehMontant: aeeh.$1);
     final cf = _calculerCF(situation);
     final prepare = _calculerPreParE(situation);
     final ars = _calculerARS(situation);
@@ -236,12 +244,13 @@ class CalculLocalService {
       aah: aah.$1,
       mva: mva.$1,
       asf: asf.$1,
+      aeeh: aeeh.$1,
       cmg: cmg.$1,
       paje: paje.$1,
       cf: cf.$1,
       prepare: prepare.$1,
       ars: ars.$1,
-      total: rsa.$1 + apl.$1 + prime.$1 + af.$1 + aah.$1 + mva.$1 + asf.$1 + cmg.$1 + paje.$1 + cf.$1 + prepare.$1 + ars.$1,
+      total: rsa.$1 + apl.$1 + prime.$1 + af.$1 + aah.$1 + mva.$1 + asf.$1 + aeeh.$1 + cmg.$1 + paje.$1 + cf.$1 + prepare.$1 + ars.$1,
       details: {
         'rsa': rsa.$2,
         'apl': apl.$2,
@@ -249,8 +258,8 @@ class CalculLocalService {
         'af': af.$2,
         'aah': aah.$2,
         'mva': mva.$2,
-
         'asf': asf.$2,
+        'aeeh': aeeh.$2,
         'cmg': cmg.$2,
         'paje': paje.$2,
         'cf': cf.$2,
@@ -303,10 +312,47 @@ class CalculLocalService {
   }
 
   // ============================================================
+  // AEEH — Allocation d'Éducation de l'Enfant Handicapé
+  // Art. L541-1 CSS — Décret n° 2026-229 du 30/03/2026
+  // ============================================================
+
+  (double, String) _calculerAEEH(Situation s) {
+    if (!s.aEnfantHandicape) {
+      return (0.0, 'AEEH : aucun enfant avec handicap reconnu (taux MDPH ≥ 50% requis). [${sourcesLegales['aeeh']}]');
+    }
+
+    int enfantsEligibles = 0;
+    for (int i = 0; i < s.agesEnfants.length; i++) {
+      final age = s.agesEnfants[i];
+      final taux = i < s.tauxHandicapEnfants.length ? s.tauxHandicapEnfants[i] : 0;
+      if (age < 20 && taux >= 50) {
+        enfantsEligibles++;
+      }
+    }
+
+    if (enfantsEligibles == 0) {
+      return (0.0, 'AEEH : aucun enfant éligible (< 20 ans avec taux MDPH ≥ 50%). [${sourcesLegales['aeeh']}]');
+    }
+
+    final montant = _aeehMontantBase * enfantsEligibles;
+    return (
+      montant,
+      'AEEH : ${montant.toStringAsFixed(2)}€/mois ($enfantsEligibles enfant(s), taux ≥ 50%, < 20 ans). '
+      'Montant de base sans compléments (catégories 1 à 6 MDPH non calculées). '
+      '[${sourcesLegales['aeeh']}]'
+    );
+  }
+
+  // ============================================================
   // PAJE base — Art. L531-2 CSS (porté depuis BudgetBébé)
   // ============================================================
 
-  (double, String) _calculerPAJE(Situation s) {
+  (double, String) _calculerPAJE(Situation s, {double aeehMontant = 0}) {
+    // AEEH non cumulable avec PAJE base (art. L531-2 CSS al. 3)
+    // Si un enfant de la famille est couvert par AEEH, PAJE non versée
+    if (aeehMontant > 0) {
+      return (0.0, 'PAJE : non cumulable avec AEEH (enfant(s) handicapé(s) éligible(s)). [${sourcesLegales['paje']}]');
+    }
     final aEnfantMoins3 = s.agesEnfants.any((a) => a < 3);
     if (!aEnfantMoins3 && s.nombreEnfants > 0) {
       return (0.0, 'PAJE : aucun enfant de moins de 3 ans. [${sourcesLegales['paje']}]');
