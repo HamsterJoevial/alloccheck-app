@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0F3BAA"/>
+      <stop offset="100%" style="stop-color:#1A56DB"/>
+    </linearGradient>
+    <clipPath id="phoneClip">
+      <rect x="0" y="0" width="1200" height="630" rx="0"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Decorative circles -->
+  <circle cx="980" cy="100" r="280" fill="#FFFFFF" opacity="0.04"/>
+  <circle cx="1100" cy="520" r="180" fill="#FFFFFF" opacity="0.05"/>
+  <circle cx="150" cy="550" r="160" fill="#FFFFFF" opacity="0.03"/>
+
+  <!-- ─── LEFT — Key message ─── -->
+
+  <!-- Icon mini -->
+  <rect x="88" y="88" width="72" height="72" rx="16" fill="#FFFFFF" opacity="0.15"/>
+  <path d="M124 100 L150 110 L150 143 Q150 160 124 168 Q98 160 98 143 L98 110 Z"
+        fill="#FFFFFF" opacity="0.85"/>
+  <path d="M112 133 L121 142 L138 125" stroke="#059669" stroke-width="7"
+        stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <text x="88" y="230" font-family="Arial, Helvetica, sans-serif"
+        font-size="74" font-weight="900" fill="#FFFFFF" letter-spacing="-2">AllocCheck</text>
+
+  <text x="92" y="284" font-family="Arial, Helvetica, sans-serif"
+        font-size="28" font-weight="300" fill="#FFFFFF" opacity="0.9">
+    Vos droits CAF — vérifiés en 3 min.
+  </text>
+
+  <rect x="88" y="310" width="64" height="4" rx="2" fill="#059669"/>
+
+  <!-- Value props -->
+  <text x="92" y="364" font-family="Arial, Helvetica, sans-serif"
+        font-size="20" fill="#FFFFFF" opacity="0.8">✓  Calcul basé sur les barèmes officiels 2026</text>
+  <text x="92" y="398" font-family="Arial, Helvetica, sans-serif"
+        font-size="20" fill="#FFFFFF" opacity="0.8">✓  Détection automatique des écarts</text>
+  <text x="92" y="432" font-family="Arial, Helvetica, sans-serif"
+        font-size="20" fill="#FFFFFF" opacity="0.8">✓  Courrier de contestation pré-rédigé</text>
+  <text x="92" y="466" font-family="Arial, Helvetica, sans-serif"
+        font-size="20" fill="#FFFFFF" opacity="0.8">✓  Gratuit · Sans inscription · Sécurisé</text>
+
+  <!-- ─── CENTER — Stat pill ─── -->
+  <rect x="88" y="508" width="320" height="64" rx="14"
+        fill="#FFFFFF" opacity="0.13"/>
+  <rect x="88" y="508" width="320" height="64" rx="14"
+        fill="none" stroke="#FFFFFF" stroke-width="1.5" opacity="0.25"/>
+  <text x="248" y="535" font-family="Arial, sans-serif"
+        font-size="14" fill="#FFFFFF" text-anchor="middle" opacity="0.7">En France, chaque année</text>
+  <text x="248" y="558" font-family="Arial, sans-serif"
+        font-size="20" font-weight="900" fill="#FFFFFF" text-anchor="middle">
+    10 milliards € de droits non réclamés
+  </text>
+
+  <!-- ─── RIGHT — Two phone mockups ─── -->
+
+  <!-- Phone 1 (back, slightly rotated) -->
+  <g transform="rotate(-6, 820, 315)">
+    <rect x="730" y="55" width="188" height="380" rx="26" fill="#0A2472" opacity="0.7"/>
+    <rect x="738" y="70" width="172" height="352" rx="20" fill="#132960" opacity="0.8"/>
+    <!-- Screen content blurred -->
+    <rect x="746" y="86" width="156" height="28" rx="4" fill="#FFFFFF" opacity="0.08"/>
+    <rect x="746" y="122" width="156" height="60" rx="8" fill="#DC2626" opacity="0.2"/>
+    <rect x="746" y="190" width="156" height="28" rx="4" fill="#FFFFFF" opacity="0.07"/>
+    <rect x="746" y="226" width="156" height="28" rx="4" fill="#FFFFFF" opacity="0.07"/>
+    <rect x="746" y="262" width="156" height="28" rx="4" fill="#FFFFFF" opacity="0.07"/>
+  </g>
+
+  <!-- Phone 2 (front, main) -->
+  <rect x="860" y="40" width="240" height="460" rx="32" fill="#1A56DB" opacity="0.25"/>
+  <rect x="860" y="40" width="240" height="460" rx="32"
+        fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.2"/>
+  <rect x="870" y="50" width="220" height="440" rx="24" fill="#0C2680"/>
+
+  <!-- Notch -->
+  <rect x="940" y="56" width="80" height="10" rx="5" fill="#0A2472"/>
+
+  <!-- Status bar -->
+  <rect x="878" y="74" width="204" height="26" rx="4" fill="#FFFFFF" opacity="0.1"/>
+  <text x="980" y="92" font-family="Arial, sans-serif" font-size="11"
+        font-weight="700" fill="#FFFFFF" text-anchor="middle" opacity="0.9">Vos droits</text>
+
+  <!-- Alert card -->
+  <rect x="882" y="108" width="196" height="78" rx="10"
+        fill="#DC2626" opacity="0.2"/>
+  <rect x="882" y="108" width="196" height="78" rx="10"
+        fill="none" stroke="#DC2626" stroke-width="1.5" opacity="0.5"/>
+  <text x="980" y="132" font-family="Arial, sans-serif" font-size="11"
+        fill="#FFFFFF" text-anchor="middle" opacity="0.7">Manque à toucher</text>
+  <text x="980" y="159" font-family="Arial, sans-serif" font-size="26"
+        font-weight="900" fill="#FFFFFF" text-anchor="middle">+127 €/mois</text>
+  <text x="980" y="178" font-family="Arial, sans-serif" font-size="10"
+        fill="#FFFFFF" text-anchor="middle" opacity="0.6">soit 1 524 €/an non perçus</text>
+
+  <!-- Aid rows -->
+  <rect x="882" y="196" width="196" height="34" rx="7" fill="#FFFFFF" opacity="0.08"/>
+  <text x="900" y="218" font-family="Arial, sans-serif" font-size="11" fill="#FFFFFF" opacity="0.85">RSA</text>
+  <text x="1068" y="218" font-family="Arial, sans-serif" font-size="11"
+        font-weight="700" fill="#059669" text-anchor="end">+607 €/mois</text>
+
+  <rect x="882" y="236" width="196" height="34" rx="7" fill="#FFFFFF" opacity="0.08"/>
+  <text x="900" y="258" font-family="Arial, sans-serif" font-size="11" fill="#FFFFFF" opacity="0.85">APL</text>
+  <text x="1068" y="258" font-family="Arial, sans-serif" font-size="11"
+        font-weight="700" fill="#059669" text-anchor="end">+312 €/mois</text>
+
+  <rect x="882" y="276" width="196" height="34" rx="7" fill="#FFFFFF" opacity="0.08"/>
+  <text x="900" y="298" font-family="Arial, sans-serif" font-size="11" fill="#FFFFFF" opacity="0.85">Prime d'activité</text>
+  <text x="1068" y="298" font-family="Arial, sans-serif" font-size="11"
+        font-weight="700" fill="#059669" text-anchor="end">+605 €/mois</text>
+
+  <rect x="882" y="316" width="196" height="34" rx="7" fill="#FFFFFF" opacity="0.08"/>
+  <text x="900" y="338" font-family="Arial, sans-serif" font-size="11" fill="#FFFFFF" opacity="0.85">Allocations familiales</text>
+  <text x="1068" y="338" font-family="Arial, sans-serif" font-size="11"
+        font-weight="700" fill="#059669" text-anchor="end">+349 €/mois</text>
+
+  <!-- CTA button -->
+  <rect x="882" y="366" width="196" height="40" rx="10" fill="#1A56DB"/>
+  <text x="980" y="391" font-family="Arial, sans-serif" font-size="12"
+        font-weight="700" fill="#FFFFFF" text-anchor="middle">Débloquer — 0,99 €</text>
+
+  <!-- Disclaimer tiny -->
+  <text x="980" y="418" font-family="Arial, sans-serif" font-size="9"
+        fill="#FFFFFF" text-anchor="middle" opacity="0.5">Paiement unique · Accès permanent</text>
+
+  <!-- Home indicator -->
+  <rect x="940" y="448" width="80" height="4" rx="2" fill="#FFFFFF" opacity="0.25"/>
+
+  <!-- URL bottom -->
+  <text x="88" y="600" font-family="Arial, sans-serif"
+        font-size="16" fill="#FFFFFF" opacity="0.45">alloccheck.flowforges.fr</text>
+</svg>

@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 500" width="1024" height="500">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0F3BAA"/>
+      <stop offset="60%" style="stop-color:#1A56DB"/>
+      <stop offset="100%" style="stop-color:#1E6FD9"/>
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:0.12"/>
+      <stop offset="100%" style="stop-color:#FFFFFF;stop-opacity:0.04"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="500" fill="url(#bgGrad)"/>
+
+  <!-- Decorative circles -->
+  <circle cx="820" cy="80" r="200" fill="#FFFFFF" opacity="0.04"/>
+  <circle cx="950" cy="400" r="150" fill="#FFFFFF" opacity="0.05"/>
+  <circle cx="100" cy="420" r="120" fill="#FFFFFF" opacity="0.03"/>
+
+  <!-- ─── LEFT SIDE — Branding ─── -->
+
+  <!-- App icon (mini) -->
+  <rect x="72" y="72" width="80" height="80" rx="18" fill="#FFFFFF" opacity="0.15"/>
+  <!-- shield in mini icon -->
+  <path d="M112 85 L143 96 L143 136 Q143 156 112 166 Q81 156 81 136 L81 96 Z"
+        fill="#FFFFFF" opacity="0.9"/>
+  <path d="M98 128 L108 138 L128 118" stroke="#059669" stroke-width="8"
+        stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- App name -->
+  <text x="72" y="210" font-family="Arial, Helvetica, sans-serif"
+        font-size="64" font-weight="900" fill="#FFFFFF" letter-spacing="-1">AllocCheck</text>
+
+  <!-- Tagline -->
+  <text x="74" y="262" font-family="Arial, Helvetica, sans-serif"
+        font-size="24" font-weight="400" fill="#FFFFFF" opacity="0.85">
+    Vérifiez vos droits CAF en 3 minutes
+  </text>
+
+  <!-- Divider -->
+  <rect x="72" y="290" width="56" height="3" rx="2" fill="#059669"/>
+
+  <!-- Key stats -->
+  <text x="72" y="342" font-family="Arial, Helvetica, sans-serif"
+        font-size="18" fill="#FFFFFF" opacity="0.75">
+    Gratuit · Sans inscription · Barèmes officiels 2026
+  </text>
+
+  <!-- Store badges placeholder area -->
+  <rect x="72" y="372" width="160" height="48" rx="10"
+        fill="#FFFFFF" opacity="0.15"/>
+  <text x="152" y="402" font-family="Arial, Helvetica, sans-serif"
+        font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">App Store</text>
+
+  <rect x="248" y="372" width="160" height="48" rx="10"
+        fill="#FFFFFF" opacity="0.15"/>
+  <text x="328" y="402" font-family="Arial, Helvetica, sans-serif"
+        font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">Google Play</text>
+
+  <!-- ─── RIGHT SIDE — Phone mockup ─── -->
+
+  <!-- Phone frame -->
+  <rect x="620" y="30" width="240" height="440" rx="32" fill="#FFFFFF" opacity="0.10"/>
+  <rect x="628" y="38" width="224" height="424" rx="26" fill="#0A2472" opacity="0.6"/>
+  <rect x="636" y="58" width="208" height="390" rx="18" fill="#FFFFFF" opacity="0.08"/>
+
+  <!-- Phone notch -->
+  <rect x="700" y="44" width="80" height="12" rx="6" fill="#0A2472" opacity="0.8"/>
+
+  <!-- Screen content simulation -->
+  <!-- Header bar -->
+  <rect x="644" y="66" width="192" height="32" rx="4" fill="#FFFFFF" opacity="0.12"/>
+  <text x="740" y="87" font-family="Arial, sans-serif" font-size="12"
+        font-weight="700" fill="#FFFFFF" text-anchor="middle" opacity="0.9">Vos droits</text>
+
+  <!-- Alert card (red) -->
+  <rect x="652" y="106" width="176" height="72" rx="10"
+        fill="#DC2626" opacity="0.25"/>
+  <rect x="652" y="106" width="176" height="72" rx="10"
+        fill="none" stroke="#DC2626" stroke-width="1.5" opacity="0.6"/>
+  <text x="740" y="130" font-family="Arial, sans-serif" font-size="10"
+        fill="#FFFFFF" text-anchor="middle" opacity="0.7">Manque à toucher</text>
+  <text x="740" y="154" font-family="Arial, sans-serif" font-size="20"
+        font-weight="900" fill="#FFFFFF" text-anchor="middle">+127 €/mois</text>
+  <text x="740" y="170" font-family="Arial, sans-serif" font-size="9"
+        fill="#FFFFFF" text-anchor="middle" opacity="0.6">soit 1 524 €/an</text>
+
+  <!-- Aid cards -->
+  <rect x="652" y="188" width="176" height="38" rx="8" fill="#FFFFFF" opacity="0.09"/>
+  <text x="670" y="210" font-family="Arial, sans-serif" font-size="10"
+        fill="#FFFFFF" opacity="0.8">RSA</text>
+  <text x="818" y="210" font-family="Arial, sans-serif" font-size="10"
+        font-weight="700" fill="#059669" text-anchor="end">+607 €/mois</text>
+
+  <rect x="652" y="232" width="176" height="38" rx="8" fill="#FFFFFF" opacity="0.09"/>
+  <text x="670" y="254" font-family="Arial, sans-serif" font-size="10"
+        fill="#FFFFFF" opacity="0.8">APL</text>
+  <text x="818" y="254" font-family="Arial, sans-serif" font-size="10"
+        font-weight="700" fill="#059669" text-anchor="end">+312 €/mois</text>
+
+  <rect x="652" y="276" width="176" height="38" rx="8" fill="#FFFFFF" opacity="0.09"/>
+  <text x="670" y="298" font-family="Arial, sans-serif" font-size="10"
+        fill="#FFFFFF" opacity="0.8">Prime d'activité</text>
+  <text x="818" y="298" font-family="Arial, sans-serif" font-size="10"
+        font-weight="700" fill="#059669" text-anchor="end">+605 €/mois</text>
+
+  <!-- Paywall CTA button -->
+  <rect x="652" y="330" width="176" height="36" rx="8" fill="#1A56DB" opacity="0.9"/>
+  <text x="740" y="353" font-family="Arial, sans-serif" font-size="11"
+        font-weight="700" fill="#FFFFFF" text-anchor="middle">Débloquer — 0,99 €</text>
+
+  <!-- Bottom home indicator -->
+  <rect x="716" y="430" width="48" height="4" rx="2" fill="#FFFFFF" opacity="0.3"/>
+
+  <!-- ─── FLOATING BADGES ─── -->
+
+  <!-- Badge "10 Mrd€" -->
+  <rect x="492" y="88" width="116" height="76" rx="14"
+        fill="#FFFFFF" opacity="0.13"/>
+  <rect x="492" y="88" width="116" height="76" rx="14"
+        fill="none" stroke="#FFFFFF" stroke-width="1" opacity="0.2"/>
+  <text x="550" y="118" font-family="Arial, sans-serif" font-size="22"
+        font-weight="900" fill="#FFFFFF" text-anchor="middle">10 Mrd€</text>
+  <text x="550" y="137" font-family="Arial, sans-serif" font-size="10"
+        fill="#FFFFFF" text-anchor="middle" opacity="0.75">non réclamés/an</text>
+  <text x="550" y="154" font-family="Arial, sans-serif" font-size="10"
+        fill="#FFFFFF" text-anchor="middle" opacity="0.75">en France</text>
+
+  <!-- Badge "8% d'erreurs" -->
+  <rect x="492" y="188" width="116" height="60" rx="14"
+        fill="#FFFFFF" opacity="0.13"/>
+  <rect x="492" y="188" width="116" height="60" rx="14"
+        fill="none" stroke="#FFFFFF" stroke-width="1" opacity="0.2"/>
+  <text x="550" y="214" font-family="Arial, sans-serif" font-size="22"
+        font-weight="900" fill="#FFFFFF" text-anchor="middle">8%</text>
+  <text x="550" y="238" font-family="Arial, sans-serif" font-size="10"
+        fill="#FFFFFF" text-anchor="middle" opacity="0.75">d'erreurs CAF détectées</text>
+</svg>

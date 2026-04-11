@@ -12,32 +12,32 @@
 
 - [ ] QA-001 — Token `AC2026UNLOCK` hardcodé dans le bundle JS (P0) — **session dédiée backend** — voir rapport 2026-04-11
 - [ ] QA-002 — Paywall 100% client-side bypassable via console (P0) — **session dédiée backend** (lié à QA-001) — voir rapport 2026-04-11
-- [ ] QA-003 — Enum `CongeParental` sérialisé par `.index` → corruption silencieuse des brouillons (P0) — voir rapport 2026-04-11
+- [x] QA-003 — Enum draft sérialisé par `.name` (v3), `_applyDraft` avec `firstWhere+orElse` — corrigé 2026-04-11
 
 ### P1 — Importants
 
-- [ ] QA-004 — `fromJson()` sans `orElse` → crash sur données périmées (P1) — voir rapport 2026-04-11
-- [ ] QA-005 — PDF mobile = stub non fonctionnel, feature payante cassée (P1) — voir rapport 2026-04-11
-- [ ] QA-006 — `_clearDraft()` non awaité → race condition soumission (P1) — voir rapport 2026-04-11
-- [ ] QA-007 — Race condition `_calculate()` + `_loadUnlockStatus()` dans initState (P1) — voir rapport 2026-04-11
-- [ ] QA-008 — `jsonDecode` sans try/catch dans PaymentService → crash localStorage corrompu (P1) — voir rapport 2026-04-11
-- [ ] QA-009 — Brouillon non affiché si `nombreEnfants == 0` (P1) — voir rapport 2026-04-11
-- [ ] QA-010 — Zéro tests sur PaymentService (P1) — voir rapport 2026-04-11
-- [ ] QA-011 — `localizationsDelegates` absent → TalkBack en anglais (P1) — voir rapport 2026-04-11
+- [x] QA-004 — `orElse` ajouté sur tous les `firstWhere` d'enum dans `Situation.fromJson` — corrigé 2026-04-11
+- [x] QA-005 — PDF mobile : `Printing.sharePdf` au lieu du stub — corrigé 2026-04-11
+- [x] QA-006 — `await _clearDraft()` + `_submitSimulation` async — corrigé 2026-04-11
+- [x] QA-007 — `_initScreen` séquence `await _calculate()` puis `await _loadUnlockStatus()` — corrigé 2026-04-11
+- [x] QA-008 — `try/catch` sur `jsonDecode` dans `PaymentService` (getSaved + getLast) — corrigé 2026-04-11
+- [x] QA-009 — Brouillon affiché pour toutes les situations (filtre `nombreEnfants == 0` supprimé) — corrigé 2026-04-11
+- [x] QA-010 — Zéro tests sur PaymentService (P1) — corrigé 2026-04-11
+- [x] QA-011 — `localizationsDelegates` + `supportedLocales` ajoutés dans MaterialApp — corrigé 2026-04-11
 
 ### P2 — Améliorations
 
-- [ ] QA-012 — Accents manquants dans les PDF (9+ occurrences) (P2) — voir rapport 2026-04-11
-- [ ] QA-013 — `CalculService` dead code (~300 lignes) + 3 unused_field warnings (P2) — voir rapport 2026-04-11
-- [ ] QA-014 — ARS affichée en équivalent mensuel (÷12) — doit être annuel + mention août (P2) — voir rapport 2026-04-11
-- [ ] QA-015 — `textSecondary` contraste 4.48:1 (sous seuil WCAG AA 4.5:1) (P2) — voir rapport 2026-04-11
-- [ ] QA-016 — `AppTheme.warning` contraste 2.9:1 sur blanc — illisible (P2) — voir rapport 2026-04-11
-- [ ] QA-017 — Widget `Radio` déprécié depuis Flutter 3.32 (4 warnings) (P2) — voir rapport 2026-04-11
-- [ ] QA-018 — `flutter_web_plugins` non déclaré en dépendance pubspec.yaml (P2) — voir rapport 2026-04-11
-- [ ] QA-019 — Pas de loader visible pendant `_calculate()` → flash écran blanc (P2) — voir rapport 2026-04-11
-- [ ] QA-020 — Pas de bouton "Modifier ma situation" depuis ResultsScreen (P2) — voir rapport 2026-04-11
-- [ ] QA-021 — `webSaveSituationAndNavigate` peut échouer silencieusement (localStorage plein) (P2) — voir rapport 2026-04-11
-- [ ] QA-022 — `_pendingSimKey` jamais nettoyé si paiement abandonné (P2) — voir rapport 2026-04-11
+- [x] QA-012 — Accents manquants dans les PDF (9+ occurrences) (P2) — corrigé 2026-04-11
+- [x] QA-013 — `CalculService` dead code (~300 lignes) + 3 unused_field warnings (P2) — corrigé 2026-04-11
+- [x] QA-014 — ARS affichée en équivalent mensuel (÷12) — doit être annuel + mention août (P2) — corrigé 2026-04-11
+- [x] QA-015 — `textSecondary` #475569 (5.9:1) — corrigé 2026-04-11
+- [x] QA-016 — `AppTheme.warning` #B45309 (4.9:1) — corrigé 2026-04-11
+- [x] QA-017 — Widget `Radio` déprécié depuis Flutter 3.32 (4 warnings) (P2) — corrigé 2026-04-11
+- [x] QA-018 — `flutter_localizations` + `flutter_web_plugins` ajoutés en dépendances — corrigé 2026-04-11
+- [x] QA-019 — Pas de loader visible pendant `_calculate()` → flash écran blanc (P2) — corrigé 2026-04-11
+- [x] QA-020 — Pas de bouton "Modifier ma situation" depuis ResultsScreen (P2) — corrigé 2026-04-11
+- [x] QA-021 — `webSaveSituationAndNavigate` peut échouer silencieusement (localStorage plein) (P2) — corrigé 2026-04-11
+- [x] QA-022 — `_pendingSimKey` nettoyé au démarrage si aucun token Stripe détecté — corrigé 2026-04-11
 
 ### P3 — Suggestions
 

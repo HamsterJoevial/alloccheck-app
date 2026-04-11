@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Transparent background for adaptive icon foreground -->
+  <!-- Safe zone = center 66% = ~338px padding each side for visual center -->
+
+  <!-- Shield -->
+  <path d="M512 220 L700 292 L700 540 Q700 688 512 780 Q324 688 324 540 L324 292 Z"
+        fill="#FFFFFF" opacity="0.95"/>
+
+  <!-- Checkmark — green -->
+  <path d="M418 510 L480 572 L634 418"
+        stroke="#059669" stroke-width="66" stroke-linecap="round" stroke-linejoin="round"
+        fill="none"/>
+
+  <!-- Euro hint -->
+  <text x="600" y="664" font-family="Arial, sans-serif" font-size="90"
+        font-weight="900" fill="#1A56DB" opacity="0.45" text-anchor="middle">€</text>
+</svg>
