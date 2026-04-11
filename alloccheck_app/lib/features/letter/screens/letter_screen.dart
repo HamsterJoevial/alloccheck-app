@@ -160,19 +160,27 @@ class _LetterScreenState extends State<LetterScreen> {
             // Type de recours
             Text('Type de recours :', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            _buildRecoursTile(
-              'reclamation_gracieuse',
-              'Réclamation gracieuse',
-              'Premier recours — courrier à votre CAF demandant un réexamen. '
-                  'Délai de réponse : 2 mois.',
-            ),
-            const SizedBox(height: 8),
-            _buildRecoursTile(
-              'saisine_cra',
-              'Saisine de la CRA',
-              'Commission de Recours Amiable — si la réclamation gracieuse '
-                  'a été refusée ou sans réponse sous 2 mois. '
-                  'Art. R142-1 à R142-8 CSS.',
+            RadioGroup<String>(
+              groupValue: _letterType,
+              onChanged: (v) => setState(() => _letterType = v!),
+              child: Column(
+                children: [
+                  _buildRecoursTile(
+                    'reclamation_gracieuse',
+                    'Réclamation gracieuse',
+                    'Premier recours — courrier à votre CAF demandant un réexamen. '
+                        'Délai de réponse : 2 mois.',
+                  ),
+                  const SizedBox(height: 8),
+                  _buildRecoursTile(
+                    'saisine_cra',
+                    'Saisine de la CRA',
+                    'Commission de Recours Amiable — si la réclamation gracieuse '
+                        'a été refusée ou sans réponse sous 2 mois. '
+                        'Art. R142-1 à R142-8 CSS.',
+                  ),
+                ],
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -330,8 +338,6 @@ class _LetterScreenState extends State<LetterScreen> {
       ),
       child: RadioListTile<String>(
         value: value,
-        groupValue: _letterType,
-        onChanged: (v) => setState(() => _letterType = v!),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(description, style: const TextStyle(fontSize: 12)),
         activeColor: AppTheme.primary,

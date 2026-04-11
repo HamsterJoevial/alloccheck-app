@@ -1396,35 +1396,37 @@ class _SimulationScreenState extends State<SimulationScreen> {
     required String Function(T) labelBuilder,
     required void Function(T) onChanged,
   }) {
-    return Column(
-      children: items.map((item) {
-        final isSelected = item == value;
-        return Container(
-          margin: const EdgeInsets.only(bottom: 4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected ? AppTheme.primary : AppTheme.border,
-            ),
-            color: isSelected ? AppTheme.primary.withValues(alpha: 0.05) : null,
-          ),
-          child: RadioListTile<T>(
-            value: item,
-            groupValue: value,
-            onChanged: (v) {
-              if (v != null) onChanged(v);
-            },
-            title: Text(
-              labelBuilder(item),
-              style: TextStyle(
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+    return RadioGroup<T>(
+      groupValue: value,
+      onChanged: (v) {
+        if (v != null) onChanged(v);
+      },
+      child: Column(
+        children: items.map((item) {
+          final isSelected = item == value;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isSelected ? AppTheme.primary : AppTheme.border,
               ),
+              color: isSelected ? AppTheme.primary.withValues(alpha: 0.05) : null,
             ),
-            activeColor: AppTheme.primary,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      }).toList(),
+            child: RadioListTile<T>(
+              value: item,
+              title: Text(
+                labelBuilder(item),
+                style: TextStyle(
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+              activeColor: AppTheme.primary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 

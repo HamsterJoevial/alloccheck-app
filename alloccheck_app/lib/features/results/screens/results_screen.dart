@@ -158,7 +158,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 children: [
                   pw.Text(label, style: ts(11, bold: true)),
                   pw.Row(children: [
-                    pw.Text('${montant.toStringAsFixed(2)} \u20AC/mois',
+                    pw.Text(
+                      key == 'ars'
+                        ? '${(montant * 12).toStringAsFixed(0)} \u20AC/an (vers\u00e9e en ao\u00fbt)'
+                        : '${montant.toStringAsFixed(2)} \u20AC/mois',
                       style: ts(11, bold: true, color: green)),
                     if (ecartMontant > 0) ...[
                       pw.SizedBox(width: 8),
@@ -343,7 +346,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 child: pw.Row(children: [
                   pw.Text('- ${AppTheme.aideLabels[k] ?? k} : ',
                     style: ts(10, bold: true)),
-                  pw.Text('${_getAideMontant(droits, k).toStringAsFixed(2)} \u20AC/mois estimes',
+                  pw.Text(
+                    k == 'ars'
+                      ? '${(_getAideMontant(droits, k) * 12).toStringAsFixed(0)} \u20AC/an (vers\u00e9e en ao\u00fbt)'
+                      : '${_getAideMontant(droits, k).toStringAsFixed(2)} \u20AC/mois estim\u00e9s',
                     style: ts(10, color: PdfColors.orange800)),
                 ]),
               )),
@@ -667,7 +673,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                     ),
                     Text(
-                      '+${montant.toStringAsFixed(0)} €/mois',
+                      aide == 'ars'
+                        ? '+${(montant * 12).toStringAsFixed(0)} €/an (août)'
+                        : '+${montant.toStringAsFixed(0)} €/mois',
                       style: TextStyle(
                         color: AppTheme.error,
                         fontWeight: FontWeight.w700,

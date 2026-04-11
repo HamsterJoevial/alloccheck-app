@@ -62,8 +62,6 @@ class CalculLocalService {
   // P0 plancher = 39.56€ — mais P0 réel = max(8.5% × (L+C), 39.56)
   // Source : art. D.823-17 CCH, art. 13 arrêté 27/09/2019
   static const double _aplP0Plancher = 39.56;
-  static const double _aplP0Taux = 0.085; // 8.5%
-
   // Déduction forfaitaire de 5€ (depuis oct. 2017, art. D.823-16 al.9 CCH)
   static const double _aplDeduction = 5.0;
 
@@ -113,23 +111,11 @@ class CalculLocalService {
   // DÉCONJUGALISATION depuis octobre 2023 : seules les ressources
   // du demandeur sont prises en compte (pas celles du conjoint)
   static const double _aahPlafondSeul = 12400.0; // annuel
-  static const double _aahPlafondCouple = 18600.0; // annuel (mais déconjugalisé)
   static const double _aahMajorationEnfant = 6200.0; // annuel par enfant
 
   // ============================================================
   // SOURCES LÉGALES (intégrées dans les détails pour les courriers)
   // ============================================================
-
-  // --- CMG (Complément Mode de Garde — CAF.fr, barèmes 2026) ---
-  // Tranches de revenus annuels du foyer
-  static const double _cmgSeuil1 = 27017.0;
-  static const double _cmgSeuil2 = 47648.0;
-  // Montants par mode de garde et par tranche
-  static const Map<String, List<double>> _cmgMontants = {
-    'assistante_maternelle': [923.0, 461.0, 230.50],
-    'creche':                [923.0, 461.0, 230.50],
-    'garde_domicile':        [1846.0, 923.0, 461.0],
-  };
 
   // --- PAJE base (art. L531-2 CSS, arrêté 18/12/2025, barèmes avril 2026) ---
   static const double _pajeTauxPlein = 198.16;
