@@ -357,6 +357,7 @@ class _LetterScreenState extends State<LetterScreen> {
       'aah': widget.droits.aah,
       'mva': widget.droits.mva,
       'asf': widget.droits.asf,
+      'aeeh': widget.droits.aeeh,
       'cmg': widget.droits.cmg,
       'paje': widget.droits.paje,
       'cf': widget.droits.cf,
@@ -372,6 +373,7 @@ class _LetterScreenState extends State<LetterScreen> {
       'aah': 'art. L821-1 CSS, Décret n° 2026-229',
       'mva': 'art. L821-1-2 CSS, Décret n° 2026-229',
       'asf': 'art. L523-1 CSS, barèmes 01/04/2026',
+      'aeeh': 'art. L541-1 CSS, Décret n° 2026-229',
     };
 
     final now = DateTime.now();
