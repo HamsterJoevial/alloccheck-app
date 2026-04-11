@@ -441,8 +441,12 @@ class _SimulationScreenState extends State<SimulationScreen> {
       montantPercu: montantPercu,
     );
 
+    final simId = DateTime.now().millisecondsSinceEpoch.toString();
     _clearDraft();
-    Navigator.of(context).pushNamed('/results', arguments: situation);
+    Navigator.of(context).pushNamed('/results', arguments: {
+      'situation': situation,
+      'simId': simId,
+    });
   }
 
   @override

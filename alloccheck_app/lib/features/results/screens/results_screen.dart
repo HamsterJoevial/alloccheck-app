@@ -15,8 +15,9 @@ import '../../../core/utils/web_download_bridge.dart';
 /// Écran de résultats — affiche les droits calculés et l'écart
 class ResultsScreen extends StatefulWidget {
   final Situation situation;
+  final String simId;
 
-  const ResultsScreen({super.key, required this.situation});
+  const ResultsScreen({super.key, required this.situation, required this.simId});
 
   @override
   State<ResultsScreen> createState() => _ResultsScreenState();
@@ -40,7 +41,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
     try {
       final service = CalculLocalService();
       final response = service.calculerDroits(widget.situation);
-      await PaymentService.saveLastSimulation(widget.situation);
+      await PaymentService.saveLastSimulation(widget.situation, widget.simId);
       setState(() {
         _response = response;
         _isLoading = false;
@@ -431,7 +432,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   }
 
   Future<void> _loadUnlockStatus() async {
-    final unlocked = await PaymentService.isUnlocked();
+    final unlocked = await PaymentService.isUnlockedForSim(widget.simId);
     final justUnlocked = await PaymentService.consumeJustUnlocked();
     if (mounted) {
       setState(() {
@@ -1081,10 +1082,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            onPressed: () =>
-                PaymentService.saveSituationAndOpenStripe(widget.situation),
+            onPressed: () => PaymentService.saveSituationAndOpenStripe(
+                widget.situation, widget.simId),
             icon: const Icon(Icons.lock_open),
-            label: const Text('Débloquer mon rapport — 2,99 €'),
+            label: const Text('Débloquer mon rapport — 0,99 €'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
@@ -1174,10 +1175,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
-        onPressed: () =>
-            PaymentService.saveSituationAndOpenStripe(widget.situation),
+        onPressed: () => PaymentService.saveSituationAndOpenStripe(
+            widget.situation, widget.simId),
         icon: const Icon(Icons.lock_open, size: 18),
-        label: const Text('Voir le rapport complet — 2,99 €'),
+        label: const Text('Voir le rapport complet — 0,99 €'),
         style: ElevatedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 14),
         ),
@@ -1185,7 +1186,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
-  // ── BANNIÈRE CODE D'ACCÈS (affiché au premier déverrouillage) ────────────
+  // ── BANNIÈRE CONFIRMATION DÉVERROUILLAGE ─────────────────────────────────
 
   Widget _buildAccessCodeBanner() {
     return Container(
@@ -1195,64 +1196,18 @@ class _ResultsScreenState extends State<ResultsScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppTheme.secondary.withValues(alpha: 0.3)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              const Icon(Icons.check_circle_outline,
-                  color: AppTheme.secondary, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'Accès débloqué',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: AppTheme.secondary,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Notez ce code pour restaurer votre accès sur un autre appareil ou navigateur :',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: AppTheme.textSecondary),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppTheme.border),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  PaymentService.accessCode,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
+          const Icon(Icons.check_circle_outline,
+              color: AppTheme.secondary, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Rapport débloqué — merci pour votre achat !',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppTheme.secondary,
                     fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    letterSpacing: 2,
                   ),
-                ),
-                GestureDetector(
-                  onTap: () {
-                    Clipboard.setData(
-                        ClipboardData(text: PaymentService.accessCode));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Code copié dans le presse-papier')),
-                    );
-                  },
-                  child: const Icon(Icons.copy_outlined,
-                      size: 18, color: AppTheme.textSecondary),
-                ),
-              ],
             ),
           ),
         ],

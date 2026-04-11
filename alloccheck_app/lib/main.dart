@@ -40,9 +40,12 @@ class AllocCheckApp extends StatelessWidget {
               builder: (_) => const SimulationScreen(),
             );
           case '/results':
-            final situation = settings.arguments as Situation;
+            final args = settings.arguments as Map<String, dynamic>;
             return MaterialPageRoute(
-              builder: (_) => ResultsScreen(situation: situation),
+              builder: (_) => ResultsScreen(
+                situation: args['situation'] as Situation,
+                simId: args['simId'] as String,
+              ),
             );
           case '/letter':
             final args = settings.arguments as Map<String, dynamic>;
@@ -86,6 +89,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   Situation? _lastSimulation;
   DateTime? _lastSimulationDate;
+  String? _lastSimulationSimId;
 
   @override
   void initState() {
@@ -96,17 +100,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Détecte le retour depuis Stripe (?paid=TOKEN) et restaure la simulation.
   Future<void> _checkPaymentReturn() async {
-    final justUnlocked = await PaymentService.checkUrlAndUnlock(
+    final simId = await PaymentService.checkUrlAndUnlock(
       urlToken: _stripeReturnToken,
     );
     _stripeReturnToken = null; // consommé
-    if (!justUnlocked) return;
+    if (simId == null) return;
 
     final situation = await PaymentService.getSavedSituation();
     if (!mounted) return;
 
     if (situation == null) {
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Accès débloqué ! Lancez une simulation pour voir votre rapport complet.'),
@@ -119,23 +122,31 @@ class _HomeScreenState extends State<HomeScreen> {
 
     await PaymentService.clearSavedSituation();
     if (!mounted) return;
-    Navigator.of(context).pushNamed('/results', arguments: situation);
+    Navigator.of(context).pushNamed('/results', arguments: {
+      'situation': situation,
+      'simId': simId,
+    });
   }
 
   Future<void> _loadLastSimulation() async {
     final sim = await PaymentService.getLastSimulation();
     final date = await PaymentService.getLastSimulationDate();
+    final simId = await PaymentService.getLastSimulationSimId();
     if (mounted) {
       setState(() {
         _lastSimulation = sim;
         _lastSimulationDate = date;
+        _lastSimulationSimId = simId;
       });
     }
   }
 
   void _resumeLastSimulation() {
     if (_lastSimulation == null) return;
-    Navigator.of(context).pushNamed('/results', arguments: _lastSimulation);
+    Navigator.of(context).pushNamed('/results', arguments: {
+      'situation': _lastSimulation,
+      'simId': _lastSimulationSimId ?? DateTime.now().millisecondsSinceEpoch.toString(),
+    });
   }
 
   String _formatRelativeDate(DateTime date) {

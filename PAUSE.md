@@ -6,20 +6,20 @@
 
 ## Contexte de la session
 
-Session de restructuration complète du moteur de simulation AllocCheck : suppression MTP, correction barèmes ARS, correction plafonds ARS, implémentation AEEH (Phase 2).
+Session de corrections barèmes (PreParE taux partiel + majorée) + UX dynamique Phase 3 (brouillon SharedPreferences, étapes conditionnelles, tooltips) + corrections sécurité partielles (SEC-001/004).
 
 ---
 
 ## Ce qui a été fait ✅
 
-- **Suppression MTP** : retirée de 6 fichiers — supprimée pour nouveaux bénéficiaires AAH depuis déc. 2019
-- **Correction SMIC** : seuil abattement AAH corrigé à 546.91€ (était 546.20€)
-- **Correction barèmes ARS** : 403.72€/424.95€/440.65€ (barèmes août 2025 — ARS non revalorisée en avril)
-- **Correction plafonds ARS** : différenciés isolé (25 338€) / couple (32 271€) + 5 841€/enfant supplémentaire
-- **Phase 1 complète** : StatutConjugal (7 options), SituationVie, MVA (104.77€), ASF (200.78€/enfant), ALS/ALF, pension alimentaire versée/non percue, logementConventionne
-- **Phase 2 — AEEH** : 148.12€/mois/enfant, taux ≥ 50%, < 20 ans, non cumulable PAJE, UI per-child dans formulaire
-- **Tests** : 15/15 passent — P13 (1 enfant 70%), P14 (2 ans 60% → AEEH > PAJE), P15 (2 enfants dont 1 handicapé)
-- **Déployé** : alloccheck.flowforges.fr (GitHub Pages, commit a559dd6)
+- **Phase 3 UX dynamique** : brouillon auto SharedPreferences (`sim_draft_v2`), banner reprendre/effacer, étapes conditionnelles (4→5 si enfants), 10 tooltips contextuel sur les champs
+- **PreParE taux partiel (50-80%)** : ajout `CongeParental.tauxPartiel` (171.42€) dans enum + calcul + radio list UI
+- **PreParE majorée** : 3+ enfants + cessation totale → 745.45€/mois (`_prepareMajoree`)
+- **Tests** : 17/17 passent — P05 mis à jour (745.45€), P16 (PreParE majorée), P17 (tauxPartiel 171.42€)
+- **SEC-004** : hint text `'Votre code (ex : AC2026UNLOCK)'` → `'Code reçu par email après paiement'`
+- **SEC-001 partiel** : bouton "J'ai déjà un code d'accès" + méthodes `_showCodeDialog`/`_handleCodeUnlock` supprimés
+- **SEC-003/006** : déjà OK dans `main.dart` (l.120 `clearSavedSituation()` après restauration)
+- **Déployé** : alloccheck.flowforges.fr (GitHub Pages, commit 4fc2eaa)
 
 ## Ce qui est en cours ⏳
 
@@ -27,35 +27,33 @@ Session de restructuration complète du moteur de simulation AllocCheck : suppre
 
 ## Ce qui est bloqué 🔴
 
-- Aucun
+- **SEC-001/002 full fix** : impossible sans backend — token `AC2026UNLOCK` hardcodé dans `payment_service.dart:13`. Accessible par décompilation JS mais plus exposé dans l'UI. Nécessite Supabase Edge Function `validate-token` + Stripe Webhook.
 
 ## Prochaines étapes 🎯
 
-1. **Rapport PDF** : ajouter AEEH dans le tableau PDF (`results_screen.dart _generateRapportPdf`)
-2. **Lettre de contestation** : ajouter références légales AEEH dans `letter_screen.dart`
-3. **Phase 3 — UX dynamique** (session dédiée) : formulaire adaptatif, tooltips, brouillon SharedPreferences
-4. **AEEH compléments MDPH** (si demandé) : catégories 1-6, actuellement seul le montant de base calculé
+1. **Backend sécurité** (session dédiée) : Supabase Edge Function `validate-token` + Stripe Webhook → remplacer le token hardcodé
+2. **Audit** : `/qa-team` ou `/security-team` pour état global post-corrections
+3. **Soumission App Store** : builds iOS/Android pas encore lancées
 
 ## Notes importantes 📝
 
-- Barèmes avril 2026 : Décrets 2026-220 à 229, BMAF 478.16€, +0.8%
-- ARS revalorisée en AOÛT uniquement — barèmes août 2025 en vigueur jusqu'août 2026
-- AEEH : montant de base 148.12€ uniquement (compléments MDPH hors périmètre)
-- PAJE non cumulable AEEH : règle art. L531-2 CSS al. 3
-- MTP définitivement supprimée — PCH (MDPH) est le dispositif applicable
-- Deploy : rsync build/web/ vers /tmp/gh-pages-deploy/ puis push
+- 17/17 tests — `flutter test test/profils_test.dart`
+- 0 erreurs `flutter analyze` (warnings pré-existants uniquement)
+- Token `AC2026UNLOCK` dans `lib/core/services/payment_service.dart:13` — ne plus exposer dans l'UI, fix complet = backend
+- Barèmes avril 2026 : BMAF 478.16€, +0.8% — CF/PAJE/CMG/PreParE à jour
+- ARS : barèmes août 2025 en vigueur jusqu'août 2026 (non revalorisée en avril)
+- AEEH : 148.12€/mois/enfant, taux ≥ 50%, < 20 ans, non cumulable PAJE
+- Deploy : `rsync build/web/ gh-pages/ --delete --exclude='.git'` puis `git push origin main:gh-pages`
 
 ---
 
 ## Fichiers modifiés lors de cette session
 
-- `lib/core/models/situation.dart`
-- `lib/core/models/droits_result.dart`
-- `lib/core/theme/app_theme.dart`
-- `lib/core/services/calcul_local_service.dart`
-- `lib/features/results/screens/results_screen.dart`
-- `lib/features/simulation/screens/simulation_screen.dart`
-- `test/profils_test.dart`
+- `lib/core/models/situation.dart` — enum CongeParental + tauxPartiel
+- `lib/core/services/calcul_local_service.dart` — `_calculerPreParE` + PreParE majorée
+- `lib/features/simulation/screens/simulation_screen.dart` — Phase 3 UX + radio list congé parental
+- `lib/features/results/screens/results_screen.dart` — SEC-004 hint text + SEC-001 suppression code dialog
+- `test/profils_test.dart` — P05 mis à jour, P16 + P17 ajoutés
 
 ---
 
