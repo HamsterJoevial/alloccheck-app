@@ -160,6 +160,7 @@ class CalculLocalService {
   static const double _prepareTauxPlein = 459.69;  // cessation totale d'activité
   static const double _prepareTauxDemi = 297.17;   // temps partiel ≤ 50%
   static const double _prepareTauxPartiel = 171.42; // temps partiel 50-80%
+  static const double _prepareMajoree = 745.45;    // cessation totale + 3+ enfants
 
   static const Map<String, String> sourcesLegales = {
     'rsa': 'Art. L262-2 CASF — Décret n° 2026-220 du 30/03/2026',
@@ -458,17 +459,27 @@ class CalculLocalService {
       return (0.0, 'PreParE : aucun enfant. [${sourcesLegales['prepare']}]');
     }
 
-    final montant = s.congeParental == CongeParental.tauxPlein
-        ? _prepareTauxPlein
-        : _prepareTauxDemi;
-    final type = s.congeParental == CongeParental.tauxPlein
-        ? 'taux plein (arrêt complet)'
-        : 'taux demi (mi-temps)';
+    // PreParE majorée : cessation totale + 3 enfants ou plus (Art. L531-4 CSS)
+    if (s.congeParental == CongeParental.tauxPlein && s.nombreEnfants >= 3) {
+      return (
+        _prepareMajoree,
+        'PreParE majorée : ${_prepareMajoree.toStringAsFixed(2)}€/mois '
+            '(cessation totale, ${s.nombreEnfants} enfants). '
+            '[${sourcesLegales['prepare']}]',
+      );
+    }
+
+    final (double montant, String type) = switch (s.congeParental) {
+      CongeParental.tauxPlein   => (_prepareTauxPlein, 'taux plein (arrêt complet)'),
+      CongeParental.tauxDemi    => (_prepareTauxDemi, 'temps partiel ≤ 50%'),
+      CongeParental.tauxPartiel => (_prepareTauxPartiel, 'temps partiel 50-80%'),
+      _ => (0.0, ''),
+    };
 
     return (
       montant,
       'PreParE : ${montant.toStringAsFixed(2)}€/mois ($type). '
-          '[${sourcesLegales['prepare']}]'
+          '[${sourcesLegales['prepare']}]',
     );
   }
 

@@ -1,5 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/models/situation.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -16,7 +19,22 @@ class SimulationScreen extends StatefulWidget {
 class _SimulationScreenState extends State<SimulationScreen> {
   final _pageController = PageController();
   int _currentStep = 0;
-  static const int _totalSteps = 4;
+  bool _showResumeBanner = false;
+  Timer? _saveTimer;
+
+  bool get _hasEnfants => _nombreEnfants > 0;
+  int get _totalSteps => _hasEnfants ? 5 : 4;
+
+  int _stepOf(String s) {
+    switch (s) {
+      case 'famille': return 0;
+      case 'enfants': return _hasEnfants ? 1 : -1;
+      case 'revenus': return _hasEnfants ? 2 : 1;
+      case 'logement': return _hasEnfants ? 3 : 2;
+      case 'percu': return _hasEnfants ? 4 : 3;
+      default: return 0;
+    }
+  }
 
   // Step 1 — Situation familiale
   StatutConjugal _statutConjugal = StatutConjugal.celibataire;
@@ -100,7 +118,14 @@ class _SimulationScreenState extends State<SimulationScreen> {
   };
 
   @override
+  void initState() {
+    super.initState();
+    _loadDraft();
+  }
+
+  @override
   void dispose() {
+    _saveTimer?.cancel();
     _pageController.dispose();
     _revenuDemandeurController.dispose();
     _revenuConjointController.dispose();
@@ -115,6 +140,149 @@ class _SimulationScreenState extends State<SimulationScreen> {
       c.dispose();
     }
     super.dispose();
+  }
+
+  // ============================================================
+  // DRAFT — SharedPreferences
+  // ============================================================
+
+  void _scheduleSave() {
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 800), _saveDraft);
+  }
+
+  Future<void> _saveDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = <String, dynamic>{
+      'statutConjugal': _statutConjugal.index,
+      'nombreEnfants': _nombreEnfants,
+      'agesEnfants': _agesEnfants,
+      'versePension': _versePension,
+      'recoitPension': _recoitPension,
+      'pensionNonPercue': _pensionNonPercue,
+      'pensionVersee': _pensionVerseeController.text,
+      'pensionRecue': _pensionRecueController.text,
+      'situationVie': _situationVie.index,
+      'besoinTiercePersonne': _besoinTiercePersonne,
+      'sourceRevenuDemandeur': _sourceRevenuDemandeur.index,
+      'revenuDemandeur': _revenuDemandeurController.text,
+      'sourceRevenuConjoint': _sourceRevenuConjoint.index,
+      'revenuConjoint': _revenuConjointController.text,
+      'zoneLogement': _zoneLogement.index,
+      'statutLogement': _statutLogement.index,
+      'loyer': _loyerController.text,
+      'codePostal': _codePostalController.text,
+      'logementConventionne': _logementConventionne,
+      'modeGarde': _modeGarde.index,
+      'congeParental': _congeParental.index,
+      'gardeAlternee': _gardeAlternee,
+      'aHandicap': _aHandicap,
+      'tauxHandicap': _tauxHandicap,
+      'percevaitAAH': _percevaitAAH,
+      'aEnfantHandicap': _aEnfantHandicap,
+      'tauxHandicapEnfants': _tauxHandicapEnfants,
+      'autresRevenusActifs': _autresRevenusActifs.map((k, v) => MapEntry(k.index.toString(), v)),
+      'autresRevenus': _autresRevenusControllers.map((k, v) => MapEntry(k.index.toString(), v.text)),
+      'percuActifs': Map<String, dynamic>.from(_percuActifs),
+      'percuMontants': _percuControllers.map((k, v) => MapEntry(k, v.text)),
+    };
+    await prefs.setString('sim_draft_v2', jsonEncode(data));
+  }
+
+  Future<void> _loadDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('sim_draft_v2');
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      // Show banner only if draft has non-trivial content
+      final nombreEnfants = data['nombreEnfants'] as int? ?? 0;
+      final aHandicap = data['aHandicap'] as bool? ?? false;
+      final percuActifs = data['percuActifs'] as Map? ?? {};
+      final hasPercuActif = percuActifs.values.any((v) => v == true);
+      if (nombreEnfants == 0 && !aHandicap && !hasPercuActif) return;
+      if (mounted) setState(() => _showResumeBanner = true);
+    } catch (_) {
+      // Draft corrupt — ignore
+    }
+  }
+
+  Future<void> _applyDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('sim_draft_v2');
+    if (raw == null) return;
+    try {
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      setState(() {
+        _statutConjugal = StatutConjugal.values[_intOf(data['statutConjugal'], 0)];
+        _nombreEnfants = _intOf(data['nombreEnfants'], 0);
+        final ages = (data['agesEnfants'] as List?)?.map((e) => _intOf(e, 5)).toList() ?? [];
+        _agesEnfants..clear()..addAll(ages);
+        _versePension = data['versePension'] as bool? ?? false;
+        _recoitPension = data['recoitPension'] as bool? ?? false;
+        _pensionNonPercue = data['pensionNonPercue'] as bool? ?? false;
+        _pensionVerseeController.text = data['pensionVersee'] as String? ?? '';
+        _pensionRecueController.text = data['pensionRecue'] as String? ?? '';
+        _situationVie = SituationVie.values[_intOf(data['situationVie'], 0)];
+        _besoinTiercePersonne = data['besoinTiercePersonne'] as bool? ?? false;
+        _sourceRevenuDemandeur = SourceRevenuActivite.values[_intOf(data['sourceRevenuDemandeur'], 0)];
+        _revenuDemandeurController.text = data['revenuDemandeur'] as String? ?? '';
+        _sourceRevenuConjoint = SourceRevenuActivite.values[_intOf(data['sourceRevenuConjoint'], 0)];
+        _revenuConjointController.text = data['revenuConjoint'] as String? ?? '';
+        _zoneLogement = ZoneLogement.values[_intOf(data['zoneLogement'], 1)];
+        _statutLogement = StatutLogement.values[_intOf(data['statutLogement'], 0)];
+        _loyerController.text = data['loyer'] as String? ?? '';
+        _codePostalController.text = data['codePostal'] as String? ?? '';
+        _logementConventionne = data['logementConventionne'] as bool? ?? true;
+        _modeGarde = ModeGarde.values[_intOf(data['modeGarde'], 0)];
+        _congeParental = CongeParental.values[_intOf(data['congeParental'], 0)];
+        _gardeAlternee = data['gardeAlternee'] as bool? ?? false;
+        _aHandicap = data['aHandicap'] as bool? ?? false;
+        _tauxHandicap = _intOf(data['tauxHandicap'], 80);
+        _percevaitAAH = data['percevaitAAH'] as bool? ?? false;
+        _aEnfantHandicap = data['aEnfantHandicap'] as bool? ?? false;
+        final thEnfants = (data['tauxHandicapEnfants'] as List?)?.map((e) => _intOf(e, 0)).toList() ?? [];
+        _tauxHandicapEnfants..clear()..addAll(thEnfants);
+        final autresActifs = data['autresRevenusActifs'] as Map?;
+        if (autresActifs != null) {
+          for (final type in TypeAutreRevenu.values) {
+            _autresRevenusActifs[type] = autresActifs[type.index.toString()] as bool? ?? false;
+          }
+        }
+        final autresMontants = data['autresRevenus'] as Map?;
+        if (autresMontants != null) {
+          for (final type in TypeAutreRevenu.values) {
+            _autresRevenusControllers[type]!.text = autresMontants[type.index.toString()] as String? ?? '';
+          }
+        }
+        final percuActifs = data['percuActifs'] as Map?;
+        if (percuActifs != null) {
+          for (final key in _percuActifs.keys) {
+            _percuActifs[key] = percuActifs[key] as bool? ?? false;
+          }
+        }
+        final percuMontants = data['percuMontants'] as Map?;
+        if (percuMontants != null) {
+          for (final key in _percuControllers.keys) {
+            _percuControllers[key]!.text = percuMontants[key] as String? ?? '';
+          }
+        }
+        _showResumeBanner = false;
+      });
+    } catch (_) {
+      // Draft corrupt — silently ignore
+    }
+  }
+
+  int _intOf(dynamic v, int def) {
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    return def;
+  }
+
+  Future<void> _clearDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('sim_draft_v2');
   }
 
   void _nextStep() {
@@ -142,61 +310,54 @@ class _SimulationScreenState extends State<SimulationScreen> {
   }
 
   String? _validateCurrentStep() {
-    switch (_currentStep) {
-      case 0: // Famille
-        if (_versePension) {
-          final montant = double.tryParse(_pensionVerseeController.text.replaceAll(',', '.')) ?? 0;
-          if (montant <= 0) {
-            return 'Indiquez le montant de la pension alimentaire versée.';
-          }
-        }
-        if (_recoitPension) {
-          final montant = double.tryParse(_pensionRecueController.text.replaceAll(',', '.')) ?? 0;
-          if (montant <= 0) {
-            return 'Indiquez le montant de la pension alimentaire reçue.';
-          }
-        }
-        return null;
-      case 1: // Revenus
-        if (_sourceRevenuDemandeur != SourceRevenuActivite.aucun) {
-          final revenu = double.tryParse(_revenuDemandeurController.text.replaceAll(',', '.')) ?? 0;
-          if (revenu <= 0) {
-            return 'Indiquez votre revenu mensuel net.';
-          }
-        }
-        // Vérifier que les autres revenus cochés ont un montant saisi (si saisie requise)
-        for (final entry in _autresRevenusActifs.entries) {
-          if (entry.value && entry.key.saisieRequise) {
-            final montant = double.tryParse(
-                _autresRevenusControllers[entry.key]!.text.replaceAll(',', '.')) ?? 0;
-            if (montant <= 0) {
-              return 'Indiquez le montant pour "${entry.key.label}".';
-            }
-          }
-        }
-        return null;
-      case 2: // Logement
-        if (_statutLogement == StatutLogement.locataire) {
-          final loyer = double.tryParse(_loyerController.text.replaceAll(',', '.')) ?? 0;
-          if (loyer <= 0) {
-            return 'Indiquez votre loyer mensuel.';
-          }
-        }
-        return null;
-      case 3: // Perçu — toujours valide (rien coché = OK)
-        for (final entry in _percuActifs.entries) {
-          if (entry.value) {
-            final montant = double.tryParse(
-                _percuControllers[entry.key]!.text.replaceAll(',', '.')) ?? 0;
-            if (montant <= 0) {
-              return 'Indiquez le montant perçu pour ${AppTheme.aideLabels[entry.key]}.';
-            }
-          }
-        }
-        return null;
-      default:
-        return null;
+    if (_currentStep == _stepOf('famille')) {
+      return null; // pension moved to enfants step
     }
+    if (_currentStep == _stepOf('enfants') && _hasEnfants) {
+      if (_versePension) {
+        final montant = double.tryParse(_pensionVerseeController.text.replaceAll(',', '.')) ?? 0;
+        if (montant <= 0) return 'Indiquez le montant de la pension alimentaire versée.';
+      }
+      if (_recoitPension) {
+        final montant = double.tryParse(_pensionRecueController.text.replaceAll(',', '.')) ?? 0;
+        if (montant <= 0) return 'Indiquez le montant de la pension alimentaire reçue.';
+      }
+      return null;
+    }
+    if (_currentStep == _stepOf('revenus')) {
+      if (_sourceRevenuDemandeur != SourceRevenuActivite.aucun) {
+        final revenu = double.tryParse(_revenuDemandeurController.text.replaceAll(',', '.')) ?? 0;
+        if (revenu <= 0) return 'Indiquez votre revenu mensuel net.';
+      }
+      for (final entry in _autresRevenusActifs.entries) {
+        if (entry.value && entry.key.saisieRequise) {
+          final montant = double.tryParse(
+              _autresRevenusControllers[entry.key]!.text.replaceAll(',', '.')) ?? 0;
+          if (montant <= 0) return 'Indiquez le montant pour "${entry.key.label}".';
+        }
+      }
+      return null;
+    }
+    if (_currentStep == _stepOf('logement')) {
+      if (_statutLogement == StatutLogement.locataire) {
+        final loyer = double.tryParse(_loyerController.text.replaceAll(',', '.')) ?? 0;
+        if (loyer <= 0) return 'Indiquez votre loyer mensuel.';
+      }
+      return null;
+    }
+    if (_currentStep == _stepOf('percu')) {
+      for (final entry in _percuActifs.entries) {
+        if (entry.value) {
+          final montant = double.tryParse(
+              _percuControllers[entry.key]!.text.replaceAll(',', '.')) ?? 0;
+          if (montant <= 0) {
+            return 'Indiquez le montant perçu pour ${AppTheme.aideLabels[entry.key]}.';
+          }
+        }
+      }
+      return null;
+    }
+    return null;
   }
 
   void _previousStep() {
@@ -280,6 +441,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
       montantPercu: montantPercu,
     );
 
+    _clearDraft();
     Navigator.of(context).pushNamed('/results', arguments: situation);
   }
 
@@ -297,23 +459,50 @@ class _SimulationScreenState extends State<SimulationScreen> {
       ),
       body: Column(
         children: [
+          if (_showResumeBanner) _buildResumeBanner(),
           _buildProgressBar(),
           Expanded(
-            child: PageView(
+            child: PageView.builder(
               controller: _pageController,
               physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _buildStep1Famille(),
-                _buildStep2Revenus(),
-                _buildStep3Logement(),
-                _buildStep4Percu(),
-              ],
+              itemCount: _totalSteps,
+              itemBuilder: (context, step) => _buildPageContent(step),
             ),
           ),
           _buildBottomButton(),
         ],
       ),
     );
+  }
+
+  Widget _buildResumeBanner() {
+    return MaterialBanner(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      content: const Text('Vous avez une simulation en cours.'),
+      leading: const Icon(Icons.restore, color: AppTheme.primary),
+      backgroundColor: AppTheme.primary.withValues(alpha: 0.08),
+      actions: [
+        TextButton(
+          onPressed: () {
+            setState(() => _showResumeBanner = false);
+            _clearDraft();
+          },
+          child: const Text('Effacer'),
+        ),
+        TextButton(
+          onPressed: _applyDraft,
+          child: const Text('Reprendre', style: TextStyle(fontWeight: FontWeight.w700)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPageContent(int step) {
+    if (step == 0) return _buildStep0Famille();
+    if (_hasEnfants && step == 1) return _buildStep1Enfants();
+    if (step == _stepOf('revenus')) return _buildStep2Revenus();
+    if (step == _stepOf('logement')) return _buildStep3Logement();
+    return _buildStep4Percu();
   }
 
   Widget _buildProgressBar() {
@@ -343,20 +532,19 @@ class _SimulationScreenState extends State<SimulationScreen> {
   }
 
   String _stepLabel(int step) {
-    switch (step) {
-      case 0: return 'Famille';
-      case 1: return 'Revenus';
-      case 2: return 'Logement';
-      case 3: return 'Ce que je perçois';
-      default: return '';
-    }
+    if (step == 0) return 'Famille';
+    if (_hasEnfants && step == 1) return 'Enfants';
+    if (step == _stepOf('revenus')) return 'Revenus';
+    if (step == _stepOf('logement')) return 'Logement';
+    if (step == _stepOf('percu')) return 'Ce que je perçois';
+    return '';
   }
 
   // ============================================================
-  // STEP 1 — FAMILLE
+  // STEP 0 — FAMILLE (allégé)
   // ============================================================
 
-  Widget _buildStep1Famille() {
+  Widget _buildStep0Famille() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -367,13 +555,17 @@ class _SimulationScreenState extends State<SimulationScreen> {
           const SizedBox(height: 24),
 
           // Statut conjugal
-          _buildSectionTitle('Votre statut :'),
+          _buildSectionTitle('Votre statut :',
+              tooltip: 'Détermine le calcul du RSA, APL et aides familiales.'),
           const SizedBox(height: 8),
           _buildRadioList<StatutConjugal>(
             items: StatutConjugal.values,
             value: _statutConjugal,
             labelBuilder: (v) => v.label,
-            onChanged: (v) => setState(() => _statutConjugal = v),
+            onChanged: (v) {
+              setState(() => _statutConjugal = v);
+              _scheduleSave();
+            },
           ),
           const SizedBox(height: 24),
 
@@ -390,89 +582,198 @@ class _SimulationScreenState extends State<SimulationScreen> {
                 while (_tauxHandicapEnfants.length < v) { _tauxHandicapEnfants.add(0); }
                 while (_tauxHandicapEnfants.length > v) { _tauxHandicapEnfants.removeLast(); }
               });
+              _scheduleSave();
             },
           ),
 
-          // Âge des enfants (pour majoration AF 14+)
-          if (_nombreEnfants > 0) ...[
+          // Veuf(ve) — info pension de réversion
+          if (_statutConjugal == StatutConjugal.veuf) ...[
             const SizedBox(height: 16),
-            _buildSectionTitle('Âge de chaque enfant :'),
-            const SizedBox(height: 8),
-            ...List.generate(_nombreEnfants, (i) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Text('Enfant ${i + 1} :', style: Theme.of(context).textTheme.bodyLarge),
-                  const SizedBox(width: 12),
-                  _buildAgeSelector(
-                    value: _agesEnfants[i],
-                    onChanged: (v) => setState(() => _agesEnfants[i] = v),
-                  ),
-                ],
-              ),
-            )),
+            _buildInfoBox('Vous pouvez déclarer une pension de réversion dans la section "Autres revenus" (étape suivante).'),
           ],
 
-          // Handicap enfant(s) — AEEH
-          if (_nombreEnfants > 0) ...[
-            const SizedBox(height: 24),
+          // Handicap adulte
+          const SizedBox(height: 24),
+          _buildCheckTile(
+            'Situation de handicap',
+            'Taux d\'incapacité reconnu par la MDPH',
+            _aHandicap,
+            (v) {
+              setState(() {
+                _aHandicap = v;
+                if (!v) _percevaitAAH = false;
+              });
+              _scheduleSave();
+            },
+          ),
+          if (_aHandicap) ...[
+            const SizedBox(height: 12),
+            _buildInfoBox(
+              'Le taux d\'incapacité est une donnée de santé protégée (RGPD Art. 9). '
+              'En cochant cette case, vous consentez à son utilisation pour le calcul de vos droits. '
+              'Cette donnée reste sur votre appareil et n\'est jamais transmise.',
+            ),
+            const SizedBox(height: 12),
+            _buildSectionTitle('Taux d\'incapacité :',
+                tooltip: 'Déterminé par la MDPH. 50-79% : AAH sous conditions. 80%+ : AAH taux plein (1 041,59€).'),
+            const SizedBox(height: 8),
+            _buildRadioList<int>(
+              items: const [50, 80],
+              value: _tauxHandicap >= 80 ? 80 : 50,
+              labelBuilder: (v) => v == 50
+                  ? 'Entre 50% et 79% (AAH sous conditions)'
+                  : '80% ou plus (AAH pleine)',
+              onChanged: (v) {
+                setState(() => _tauxHandicap = v);
+                _scheduleSave();
+              },
+            ),
+            const SizedBox(height: 12),
             _buildCheckTile(
-              'Un ou plusieurs enfants ont un handicap reconnu (MDPH)',
-              'Taux d\'incapacité reconnu par la MDPH — ouvre droit à l\'AEEH (148,12€/mois/enfant)',
-              _aEnfantHandicap,
-              (v) => setState(() {
+              'Je perçois déjà l\'AAH',
+              'L\'AAH est calculée automatiquement — cochez si vous la touchez déjà',
+              _percevaitAAH,
+              (v) {
+                setState(() => _percevaitAAH = v);
+                _scheduleSave();
+              },
+            ),
+            if (_tauxHandicap >= 80) ...[
+              const SizedBox(height: 16),
+              _buildSectionTitle('Votre situation de vie',
+                  tooltip: 'MVA (104,77€/mois) : AAH taux plein + locataire. Non versée en institution.'),
+              const SizedBox(height: 8),
+              _buildRadioList<SituationVie>(
+                items: SituationVie.values,
+                value: _situationVie,
+                labelBuilder: (v) => v.label,
+                onChanged: (v) {
+                  setState(() => _situationVie = v);
+                  _scheduleSave();
+                },
+              ),
+              if (_situationVie == SituationVie.autonome) ...[
+                const SizedBox(height: 8),
+                _buildCheckTile(
+                  'Besoin d\'une aide humaine au quotidien',
+                  'Tierce personne pour les actes essentiels',
+                  _besoinTiercePersonne,
+                  (v) {
+                    setState(() => _besoinTiercePersonne = v);
+                    _scheduleSave();
+                  },
+                ),
+              ],
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // STEP 1 — ENFANTS (conditionnel, uniquement si _hasEnfants)
+  // ============================================================
+
+  Widget _buildStep1Enfants() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Vos enfants',
+              style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 24),
+
+          // Âge de chaque enfant
+          _buildSectionTitle('Âge de chaque enfant :'),
+          const SizedBox(height: 8),
+          ...List.generate(_nombreEnfants, (i) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Text('Enfant ${i + 1} :', style: Theme.of(context).textTheme.bodyLarge),
+                const SizedBox(width: 12),
+                _buildAgeSelector(
+                  value: _agesEnfants[i],
+                  onChanged: (v) {
+                    setState(() => _agesEnfants[i] = v);
+                    _scheduleSave();
+                  },
+                ),
+              ],
+            ),
+          )),
+
+          // Handicap enfant(s) — AEEH
+          const SizedBox(height: 24),
+          _buildCheckTile(
+            'Un ou plusieurs enfants ont un handicap reconnu (MDPH)',
+            'Taux d\'incapacité reconnu par la MDPH — ouvre droit à l\'AEEH (148,12€/mois/enfant)',
+            _aEnfantHandicap,
+            (v) {
+              setState(() {
                 _aEnfantHandicap = v;
                 if (!v) {
                   for (int i = 0; i < _tauxHandicapEnfants.length; i++) {
                     _tauxHandicapEnfants[i] = 0;
                   }
                 }
-              }),
+              });
+              _scheduleSave();
+            },
+          ),
+          if (_aEnfantHandicap) ...[
+            const SizedBox(height: 8),
+            _buildInfoBox(
+              'L\'AEEH (Allocation d\'Éducation de l\'Enfant Handicapé) est versée '
+              'pour chaque enfant de moins de 20 ans avec un taux MDPH ≥ 50%. '
+              'Elle n\'est pas cumulable avec la PAJE.',
             ),
-            if (_aEnfantHandicap) ...[
-              const SizedBox(height: 8),
-              _buildInfoBox(
-                'L\'AEEH (Allocation d\'Éducation de l\'Enfant Handicapé) est versée '
-                'pour chaque enfant de moins de 20 ans avec un taux MDPH ≥ 50%. '
-                'Elle n\'est pas cumulable avec la PAJE.',
-              ),
-              const SizedBox(height: 12),
-              ...List.generate(_nombreEnfants, (i) {
-                while (_tauxHandicapEnfants.length <= i) { _tauxHandicapEnfants.add(0); }
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionTitle('Enfant ${i + 1} (${_agesEnfants[i]} ans) — Taux MDPH :'),
-                      const SizedBox(height: 6),
-                      _buildRadioList<int>(
-                        items: const [0, 50, 80],
-                        value: _tauxHandicapEnfants[i],
-                        labelBuilder: (v) => v == 0
-                            ? 'Non reconnu ou < 50%'
-                            : v == 50
-                                ? 'Entre 50% et 79%'
-                                : '80% ou plus',
-                        onChanged: (v) => setState(() => _tauxHandicapEnfants[i] = v),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-            ],
+            const SizedBox(height: 12),
+            ...List.generate(_nombreEnfants, (i) {
+              while (_tauxHandicapEnfants.length <= i) { _tauxHandicapEnfants.add(0); }
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionTitle('Enfant ${i + 1} (${_agesEnfants[i]} ans) — Taux MDPH :',
+                        tooltip: 'AEEH : 148,12€/mois/enfant < 20 ans avec taux ≥ 50%. Non cumulable avec PAJE.'),
+                    const SizedBox(height: 6),
+                    _buildRadioList<int>(
+                      items: const [0, 50, 80],
+                      value: _tauxHandicapEnfants[i],
+                      labelBuilder: (v) => v == 0
+                          ? 'Non reconnu ou < 50%'
+                          : v == 50
+                              ? 'Entre 50% et 79%'
+                              : '80% ou plus',
+                      onChanged: (v) {
+                        setState(() => _tauxHandicapEnfants[i] = v);
+                        _scheduleSave();
+                      },
+                    ),
+                  ],
+                ),
+              );
+            }),
           ],
 
           // Pension alimentaire (divorcé / séparé)
           if ([StatutConjugal.divorce, StatutConjugal.separe].contains(_statutConjugal)) ...[
             const SizedBox(height: 24),
-            _buildSectionTitle('Pension alimentaire'),
+            _buildSectionTitle('Pension alimentaire',
+                tooltip: 'Déductible de vos ressources pour RSA, APL et Prime d\'activité.'),
             const SizedBox(height: 8),
             _buildCheckTile(
               'Je verse une pension alimentaire',
               'Montant que vous payez chaque mois à votre ex-conjoint(e)',
               _versePension,
-              (v) => setState(() => _versePension = v),
+              (v) {
+                setState(() => _versePension = v);
+                _scheduleSave();
+              },
             ),
             if (_versePension) ...[
               const SizedBox(height: 8),
@@ -487,7 +788,10 @@ class _SimulationScreenState extends State<SimulationScreen> {
               'Je reçois une pension alimentaire',
               'Montant versé par votre ex-conjoint(e)',
               _recoitPension,
-              (v) => setState(() => _recoitPension = v),
+              (v) {
+                setState(() => _recoitPension = v);
+                _scheduleSave();
+              },
             ),
             if (_recoitPension) ...[
               const SizedBox(height: 8),
@@ -497,29 +801,27 @@ class _SimulationScreenState extends State<SimulationScreen> {
                 hint: 'ex : 350',
               ),
             ],
-            if (_nombreEnfants > 0 && !_recoitPension) ...[
+            if (!_recoitPension) ...[
               const SizedBox(height: 8),
               _buildCheckTile(
                 'Je ne reçois pas la pension qui m\'est due',
                 'L\'autre parent devrait verser une pension mais ne la verse pas',
                 _pensionNonPercue,
-                (v) => setState(() => _pensionNonPercue = v),
+                (v) {
+                  setState(() => _pensionNonPercue = v);
+                  _scheduleSave();
+                },
               ),
               if (_pensionNonPercue)
-                _buildInfoBox('Vous pouvez avoir droit à l\'ASF (Allocation de Soutien Familial) : jusqu\'à 164,96€/mois par enfant.'),
+                _buildInfoBox('Droit à l\'ASF : 200,78€/mois/enfant si l\'autre parent ne verse pas.'),
             ],
           ],
 
-          // Veuf(ve) — info pension de réversion
-          if (_statutConjugal == StatutConjugal.veuf) ...[
-            const SizedBox(height: 16),
-            _buildInfoBox('Vous pouvez déclarer une pension de réversion dans la section "Autres revenus" (étape suivante).'),
-          ],
-
-          // Mode de garde (si enfant < 6 ans présent ou inconnu)
-          if (_nombreEnfants > 0 && (_agesEnfants.isEmpty || _agesEnfants.any((a) => a < 6))) ...[
+          // Mode de garde (si enfant < 6 ans)
+          if (_agesEnfants.any((a) => a < 6)) ...[
             const SizedBox(height: 24),
-            _buildSectionTitle('Mode de garde (enfant < 6 ans) :'),
+            _buildSectionTitle('Mode de garde (enfant < 6 ans) :',
+                tooltip: 'CMG calculé à l\'heure depuis sept. 2025. Simulateur officiel sur caf.fr.'),
             const SizedBox(height: 8),
             _buildRadioList<ModeGarde>(
               items: ModeGarde.values,
@@ -532,7 +834,10 @@ class _SimulationScreenState extends State<SimulationScreen> {
                   case ModeGarde.gardeADomicile: return 'Garde à domicile';
                 }
               },
-              onChanged: (v) => setState(() => _modeGarde = v),
+              onChanged: (v) {
+                setState(() => _modeGarde = v);
+                _scheduleSave();
+              },
             ),
             const SizedBox(height: 12),
             _buildSectionTitle('Congé parental :'),
@@ -543,79 +848,30 @@ class _SimulationScreenState extends State<SimulationScreen> {
               labelBuilder: (v) {
                 switch (v) {
                   case CongeParental.aucun: return 'Pas de congé parental';
-                  case CongeParental.tauxPlein: return 'Congé parental taux plein (arrêt complet) — 396€/mois';
-                  case CongeParental.tauxDemi: return 'Congé parental mi-temps — 256€/mois';
+                  case CongeParental.tauxPlein: return 'Arrêt complet — 459,69€/mois (745,45€ si 3+ enfants)';
+                  case CongeParental.tauxDemi: return 'Temps partiel ≤ 50% — 297,17€/mois';
+                  case CongeParental.tauxPartiel: return 'Temps partiel 50-80% — 171,42€/mois';
                 }
               },
-              onChanged: (v) => setState(() => _congeParental = v),
+              onChanged: (v) {
+                setState(() => _congeParental = v);
+                _scheduleSave();
+              },
             ),
-            if ([StatutConjugal.divorce, StatutConjugal.separe].contains(_statutConjugal) && _nombreEnfants > 0) ...[
-              const SizedBox(height: 12),
-              _buildCheckTile(
-                'Garde alternée',
-                'Enfant(s) en résidence alternée (divise certaines aides par 2)',
-                _gardeAlternee,
-                (v) => setState(() => _gardeAlternee = v),
-              ),
-            ],
           ],
 
-          // Handicap
-          const SizedBox(height: 24),
-          _buildCheckTile(
-            'Situation de handicap',
-            'Taux d\'incapacité reconnu par la MDPH',
-            _aHandicap,
-            (v) => setState(() {
-              _aHandicap = v;
-              if (!v) _percevaitAAH = false;
-            }),
-          ),
-          if (_aHandicap) ...[
-            const SizedBox(height: 12),
-            _buildInfoBox(
-              'Le taux d\'incapacité est une donnée de santé protégée (RGPD Art. 9). '
-              'En cochant cette case, vous consentez à son utilisation pour le calcul de vos droits. '
-              'Cette donnée reste sur votre appareil et n\'est jamais transmise.',
-            ),
-            const SizedBox(height: 12),
-            _buildSectionTitle('Taux d\'incapacité :'),
-            const SizedBox(height: 8),
-            _buildRadioList<int>(
-              items: const [50, 80],
-              value: _tauxHandicap >= 80 ? 80 : 50,
-              labelBuilder: (v) => v == 50
-                  ? 'Entre 50% et 79% (AAH sous conditions)'
-                  : '80% ou plus (AAH pleine)',
-              onChanged: (v) => setState(() => _tauxHandicap = v),
-            ),
+          // Garde alternée (divorcé/séparé)
+          if ([StatutConjugal.divorce, StatutConjugal.separe].contains(_statutConjugal)) ...[
             const SizedBox(height: 12),
             _buildCheckTile(
-              'Je perçois déjà l\'AAH',
-              'L\'AAH est calculée automatiquement — cochez si vous la touchez déjà',
-              _percevaitAAH,
-              (v) => setState(() => _percevaitAAH = v),
+              'Garde alternée',
+              'Enfant(s) en résidence alternée (divise certaines aides par 2)',
+              _gardeAlternee,
+              (v) {
+                setState(() => _gardeAlternee = v);
+                _scheduleSave();
+              },
             ),
-            if (_tauxHandicap >= 80) ...[
-              const SizedBox(height: 16),
-              _buildSectionTitle('Votre situation de vie'),
-              const SizedBox(height: 8),
-              _buildRadioList<SituationVie>(
-                items: SituationVie.values,
-                value: _situationVie,
-                labelBuilder: (v) => v.label,
-                onChanged: (v) => setState(() => _situationVie = v),
-              ),
-              if (_situationVie == SituationVie.autonome) ...[
-                const SizedBox(height: 8),
-                _buildCheckTile(
-                  'Besoin d\'une aide humaine au quotidien',
-                  'Tierce personne pour les actes essentiels',
-                  _besoinTiercePersonne,
-                  (v) => setState(() => _besoinTiercePersonne = v),
-                ),
-              ],
-            ],
           ],
         ],
       ),
@@ -838,7 +1094,8 @@ class _SimulationScreenState extends State<SimulationScreen> {
           ],
 
           const SizedBox(height: 24),
-          _buildSectionTitle('Code postal de votre commune :'),
+          _buildSectionTitle('Code postal de votre commune :',
+              tooltip: 'Zone 1 : Paris + petite couronne. Zone 2 : grande couronne + agglomérations. Zone 3 : reste.'),
           const SizedBox(height: 8),
           TextFormField(
             controller: _codePostalController,
@@ -883,7 +1140,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
             const SizedBox(height: 16),
             _buildCheckTile(
               'Logement conventionné CAF',
-              'HLM ou convention avec la CAF. Si vous ne savez pas, laissez coché.',
+              'HLM ou convention avec la CAF. Si vous ne savez pas, laissez coché. Signé entre le propriétaire et l\'État/CAF — vérifiable sur le bail.',
               _logementConventionne,
               (v) => setState(() => _logementConventionne = v),
             ),
@@ -909,6 +1166,13 @@ class _SimulationScreenState extends State<SimulationScreen> {
           Text('Cochez les aides que vous percevez actuellement et indiquez le montant',
               style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 24),
+
+          // Info ARS si enfants 6-18 ans
+          if (_agesEnfants.any((a) => a >= 6 && a <= 18)) ...[
+            _buildSectionTitle('Aide à la rentrée scolaire (ARS) :',
+                tooltip: 'Versée en août pour les 6-18 ans sous conditions de ressources.'),
+            const SizedBox(height: 8),
+          ],
 
           // Filtrer les aides selon le contexte
           // AAH : si handicap coché en étape 1, l'app la calcule — pas besoin de la saisir ici
@@ -1089,8 +1353,35 @@ class _SimulationScreenState extends State<SimulationScreen> {
     }
   }
 
-  Widget _buildSectionTitle(String text) {
-    return Text(text, style: Theme.of(context).textTheme.titleMedium);
+  Widget _buildSectionTitle(String text, {String? tooltip}) {
+    if (tooltip == null) {
+      return Text(text, style: Theme.of(context).textTheme.titleMedium);
+    }
+    return Row(
+      children: [
+        Expanded(child: Text(text, style: Theme.of(context).textTheme.titleMedium)),
+        GestureDetector(
+          onTap: () => _showTooltip(text, tooltip),
+          child: const Icon(Icons.help_outline, size: 16, color: AppTheme.textSecondary),
+        ),
+      ],
+    );
+  }
+
+  void _showTooltip(String title, String message) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title, style: Theme.of(context).textTheme.titleSmall),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildRadioList<T>({

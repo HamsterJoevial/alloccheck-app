@@ -255,8 +255,9 @@ enum ModeGarde {
 
 enum CongeParental {
   aucun,
-  tauxPlein,
-  tauxDemi,
+  tauxPlein,    // cessation totale — 459.69€ (ou 745.45€ si 3+ enfants)
+  tauxDemi,     // temps partiel ≤ 50% — 297.17€
+  tauxPartiel,  // temps partiel 50-80% — 171.42€
 }
 
 enum SourceRevenuActivite {

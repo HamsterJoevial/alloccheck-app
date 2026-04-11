@@ -441,51 +441,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
     }
   }
 
-  Future<void> _handleCodeUnlock(String code) async {
-    final success = await PaymentService.unlockWithCode(code);
-    if (!mounted) return;
-    if (success) {
-      setState(() {
-        _isUnlocked = true;
-        _justUnlocked = true;
-      });
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Code invalide. Vérifiez votre code d\'accès.')),
-      );
-    }
-  }
-
-  void _showCodeDialog() {
-    final controller = TextEditingController();
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Code d\'accès'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            hintText: 'Votre code (ex : AC2026UNLOCK)',
-          ),
-          textCapitalization: TextCapitalization.characters,
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _handleCodeUnlock(controller.text);
-            },
-            child: const Text('Débloquer'),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1161,17 +1116,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
               .bodySmall
               ?.copyWith(color: AppTheme.textSecondary),
           textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 12),
-        TextButton(
-          onPressed: _showCodeDialog,
-          child: Text(
-            'J\'ai déjà un code d\'accès',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.primary,
-                  decoration: TextDecoration.underline,
-                ),
-          ),
         ),
       ],
     );

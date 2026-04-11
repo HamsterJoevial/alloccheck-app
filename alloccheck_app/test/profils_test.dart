@@ -145,8 +145,8 @@ void main() {
       // AF : 3 enfants, 0 revenus → 349.06€
       expect(result.droits.af, 349.06);
 
-      // PreParE : taux plein = 459.69€
-      expect(result.droits.prepare, closeTo(459.69, 0.02));
+      // PreParE majorée : taux plein + 3 enfants = 745.45€
+      expect(result.droits.prepare, closeTo(745.45, 0.02));
 
       // ARS : enfant 6 ans = 403.72€/an ÷ 12 = 33.64€/mois (équivalent mensuel)
       // Barèmes août 2025, en vigueur jusqu'à août 2026 (revalorisation ARS annuelle en août)
@@ -439,6 +439,47 @@ void main() {
 
       // RSA = 0 : AAH (1041.59) > forfaitaire RSA (651.69)
       expect(result.droits.rsa, 0);
+    });
+
+    // ============================================================
+    // PROFIL 16 — Couple 3 enfants + congé parental taux plein
+    // Vérifie : PreParE majorée (745.45€)
+    // ============================================================
+    test('P16 — Couple 3 enfants + cessation totale — PreParE majorée 745.45€', () {
+      final result = service.calculerDroits(Situation(
+        statutConjugal: StatutConjugal.marie,
+        nombreEnfants: 3,
+        agesEnfants: const [1, 3, 5],
+        revenuActiviteDemandeur: 0,
+        revenuActiviteConjoint: 1200,
+        zoneLogement: ZoneLogement.zone3,
+        loyerMensuel: 550,
+        statutLogement: StatutLogement.locataire,
+        congeParental: CongeParental.tauxPlein,
+      ));
+
+      expect(result.droits.prepare, closeTo(745.45, 0.01));
+      expect(result.droits.details['prepare'], contains('majorée'));
+    });
+
+    // ============================================================
+    // PROFIL 17 — Célibataire 1 enfant + congé parental temps partiel 50-80%
+    // Vérifie : PreParE taux partiel (171.42€)
+    // ============================================================
+    test('P17 — Parent isolé + temps partiel 50-80% — PreParE 171.42€', () {
+      final result = service.calculerDroits(Situation(
+        statutConjugal: StatutConjugal.celibataire,
+        nombreEnfants: 1,
+        agesEnfants: const [1],
+        revenuActiviteDemandeur: 800,
+        zoneLogement: ZoneLogement.zone3,
+        loyerMensuel: 400,
+        statutLogement: StatutLogement.locataire,
+        congeParental: CongeParental.tauxPartiel,
+      ));
+
+      expect(result.droits.prepare, closeTo(171.42, 0.01));
+      expect(result.droits.details['prepare'], contains('50-80%'));
     });
   });
 }
