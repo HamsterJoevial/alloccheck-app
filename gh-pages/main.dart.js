@@ -30650,7 +30650,7 @@ return B.L(d.qp("String","ac_pending_sim",b),$async$DL)
 case 2:q=A.cs.D8(a.a3o(),null)
 p=v.G
 p.window.localStorage.setItem("flutter.ac_saved_situation",q)
-p.window.location.assign("https://buy.stripe.com/6oU3cu4YK4b5etBffu7EQ00")
+p.window.location.assign("https://buy.stripe.com/3cI4gycrcbDx0CL6IY7EQ01")
 return B.O(null,r)}})
 return B.P($async$DL,r)},
 afY(){var s=0,r=B.Q(t.wb),q,p,o

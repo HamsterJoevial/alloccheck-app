@@ -18,7 +18,7 @@ class PaymentService {
 
   // TODO (MANUAL): Créer un nouveau Payment Link Stripe à 0,99€ et remplacer l'URL.
   // Configurer success_url : https://alloccheck.flowforges.fr?paid=AC2026UNLOCK
-  static const _stripePaymentLink = 'https://buy.stripe.com/6oU3cu4YK4b5etBffu7EQ00';
+  static const _stripePaymentLink = 'https://buy.stripe.com/3cI4gycrcbDx0CL6IY7EQ01';
 
   /// Vérifie si la simulation [simId] est débloquée.
   static Future<bool> isUnlockedForSim(String simId) async {
