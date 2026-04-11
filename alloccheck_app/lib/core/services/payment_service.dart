@@ -54,8 +54,8 @@ class PaymentService {
   }
 
   /// Sauvegarde la situation + le simId en localStorage puis ouvre Stripe Checkout.
-  /// La situation et le simId sont restaurés automatiquement au retour dans l'app.
-  static Future<void> saveSituationAndOpenStripe(
+  /// Retourne false si la sauvegarde localStorage échoue (stockage plein).
+  static Future<bool> saveSituationAndOpenStripe(
       Situation situation, String simId) async {
     final prefs = await SharedPreferences.getInstance();
     // Sauvegarder le simId avant de naviguer vers Stripe
@@ -64,15 +64,17 @@ class PaymentService {
     final jsonStr = jsonEncode(situation.toJsonFull());
     if (kIsWeb) {
       // Écriture synchrone directe + navigation même onglet via JS interop.
-      webSaveSituationAndNavigate(
+      final ok = webSaveSituationAndNavigate(
         'flutter.$_situationKey',
         jsonStr,
         _stripePaymentLink,
       );
+      return ok;
     } else {
       await prefs.setString(_situationKey, jsonStr);
       await launchUrl(Uri.parse(_stripePaymentLink),
           mode: LaunchMode.externalApplication);
+      return true;
     }
   }
 

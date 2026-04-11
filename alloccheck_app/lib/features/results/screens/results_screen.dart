@@ -37,8 +37,28 @@ class _ResultsScreenState extends State<ResultsScreen> {
   }
 
   Future<void> _initScreen() async {
-    await _calculate();
-    await _loadUnlockStatus();
+    try {
+      final service = CalculLocalService();
+      final response = service.calculerDroits(widget.situation);
+      await PaymentService.saveLastSimulation(widget.situation, widget.simId);
+      final unlocked = await PaymentService.isUnlockedForSim(widget.simId);
+      final justUnlocked = await PaymentService.consumeJustUnlocked();
+      if (mounted) {
+        setState(() {
+          _response = response;
+          _isUnlocked = unlocked;
+          _justUnlocked = justUnlocked;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _calculate() async {
@@ -192,7 +212,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
               ),
               if (percu > 0) ...[
                 pw.SizedBox(height: 3),
-                pw.Text('Montant percu declare : ${percu.toStringAsFixed(2)} \u20AC/mois',
+                pw.Text('Montant perçu déclaré : ${percu.toStringAsFixed(2)} \u20AC/mois',
                   style: ts(9.5, color: PdfColors.grey600)),
               ],
               if (detail.isNotEmpty) ...[
@@ -204,7 +224,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   child: pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text('Detail du calcul :', style: ts(9, bold: true, color: PdfColors.grey600)),
+                      pw.Text('Détail du calcul :', style: ts(9, bold: true, color: PdfColors.grey600)),
                       pw.SizedBox(height: 3),
                       pw.Text(detail, style: ts(9, color: PdfColors.grey800)),
                     ],
@@ -245,7 +265,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 pw.Text('AllocCheck', style: ts(16, bold: true, color: green)),
                 pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
                   pw.Text('Rapport d\'analyse des droits CAF', style: ts(9, color: PdfColors.grey600)),
-                  pw.Text('Genere le $dateStr - Baremes avril 2026', style: ts(9, color: PdfColors.grey600)),
+                  pw.Text('Généré le $dateStr - Barèmes avril 2026', style: ts(9, color: PdfColors.grey600)),
                 ]),
               ],
             ),
@@ -269,52 +289,52 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
               ),
               child: pw.Column(children: [
-                infoRow('Droits theoriques mensuels estimes :', '${droits.total.toStringAsFixed(2)} \u20AC/mois', bold: true, color: green),
+                infoRow('Droits théoriques mensuels estimés :', '${droits.total.toStringAsFixed(2)} \u20AC/mois', bold: true, color: green),
                 if (ecart != null && ecart.ecartTotal > 0) ...[
                   pw.SizedBox(height: 4),
-                  infoRow('Manque a toucher :', '${ecart.ecartTotal.toStringAsFixed(2)} \u20AC/mois', bold: true, color: red),
+                  infoRow('Manque à toucher :', '${ecart.ecartTotal.toStringAsFixed(2)} \u20AC/mois', bold: true, color: red),
                   infoRow('Soit sur 12 mois :', '${(ecart.ecartTotal * 12).toStringAsFixed(0)} \u20AC non percus', bold: false, color: red),
                 ] else if (ecart != null) ...[
                   pw.SizedBox(height: 4),
-                  infoRow('Statut :', 'Aucun ecart detecte - droits a jour', bold: false, color: green),
+                  infoRow('Statut :', 'Aucun écart détecté — droits à jour', bold: false, color: green),
                 ],
                 if (aidesNonReclamees.isNotEmpty) ...[
                   pw.SizedBox(height: 4),
-                  infoRow('Aides non reclamees :', aidesNonReclamees.map((k) => AppTheme.aideLabels[k] ?? k).join(', '), bold: false, color: PdfColors.orange800),
+                  infoRow('Aides non réclamées :', aidesNonReclamees.map((k) => AppTheme.aideLabels[k] ?? k).join(', '), bold: false, color: PdfColors.orange800),
                 ],
               ]),
             ),
 
             // ══ SITUATION DÉCLARÉE ════════════════════════════════════════════
-            section('1. Situation declaree'),
+            section('1. Situation déclarée'),
             infoRow('Statut conjugal :', s.statutConjugal.label),
             infoRow('Enfants a charge :', enfantsStr),
-            if (s.gardeAlternee) infoRow('Mode de garde :', 'Garde alternee'),
+            if (s.gardeAlternee) infoRow('Mode de garde :', 'Garde alternée'),
             infoRow('Logement :', logementStr),
             if (s.logementConventionne != null)
               infoRow('Logement conventionne :', s.logementConventionne! ? 'Oui (APL)' : 'Non (ALS/ALF)'),
-            infoRow('Revenus d\'activite (demandeur) :', revenusStr),
+            infoRow('Revenus d\'activité (demandeur) :', revenusStr),
             if (s.situationFamiliale == SituationFamiliale.couple && s.revenuActiviteConjoint > 0)
-              infoRow('Revenus d\'activite (conjoint) :', '${s.revenuActiviteConjoint.toStringAsFixed(0)} \u20AC/mois'),
+              infoRow('Revenus d\'activité (conjoint) :', '${s.revenuActiviteConjoint.toStringAsFixed(0)} \u20AC/mois'),
             if (autresRev.isNotEmpty)
               infoRow('Autres revenus :', autresRev.map((r) => '${r.type.label} : ${r.montantMensuel.toStringAsFixed(0)} \u20AC').join(' | ')),
             if (s.pensionAlimentaireVersee > 0)
-              infoRow('Pension alimentaire versee :', '${s.pensionAlimentaireVersee.toStringAsFixed(0)} \u20AC/mois (deduite des ressources)'),
+              infoRow('Pension alimentaire versée :', '${s.pensionAlimentaireVersee.toStringAsFixed(0)} \u20AC/mois (déduite des ressources)'),
             if (s.pensionAlimentaireNonPercue)
-              infoRow('Pension non percue :', 'Oui - ouvre droit a l\'ASF'),
+              infoRow('Pension non perçue :', 'Oui - ouvre droit à l\'ASF'),
             if (s.tauxHandicap != null && s.tauxHandicap! > 0) ...[
-              infoRow('Taux d\'incapacite reconnu :', '${s.tauxHandicap}%'),
+              infoRow('Taux d\'incapacité reconnu :', '${s.tauxHandicap}%'),
               infoRow('Situation de vie (handicap) :', s.situationVie.label),
               if (s.besoinTiercePersonne) infoRow('Aide humaine quotidienne :', 'Oui'),
             ],
             if (s.congeParental != CongeParental.aucun)
-              infoRow('Conge parental :', s.congeParental == CongeParental.tauxPlein ? 'Temps plein' : 'Mi-temps'),
+              infoRow('Congé parental :', s.congeParental == CongeParental.tauxPlein ? 'Temps plein' : 'Mi-temps'),
 
             // ══ AIDES AVEC ÉCART ══════════════════════════════════════════════
             if (ecart != null && ecart.ecartTotal > 0) ...[
-              section('2. Aides avec ecart detecte'),
+              section('2. Aides avec écart détecté'),
               pw.Text(
-                'Les aides ci-dessous presentent un ecart entre le montant theorique calcule et le montant que vous percevez. Ces calculs sont effectues sur la base des baremes officiels en vigueur (Decrets 2026-220 a 2026-229).',
+                'Les aides ci-dessous présentent un écart entre le montant théorique calculé et le montant que vous percevez. Ces calculs sont effectués sur la base des barèmes officiels en vigueur (Décrets 2026-220 à 2026-229).',
                 style: ts(9.5, color: PdfColors.grey700),
               ),
               pw.SizedBox(height: 10),
@@ -324,9 +344,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
             ],
 
             // ══ DROITS CALCULÉS — DÉTAIL COMPLET (sans duplication) ══════════
-            section('${ecart != null && ecart.ecartTotal > 0 ? "3" : "2"}. Detail complet des droits calcules'),
+            section('${ecart != null && ecart.ecartTotal > 0 ? "3" : "2"}. Détail complet des droits calculés'),
             pw.Text(
-              'Chaque aide est calculee individuellement sur la base de votre situation declaree. Les formules et references legales applicables sont indiquees pour chaque aide.',
+              'Chaque aide est calculée individuellement sur la base de votre situation déclarée. Les formules et références légales applicables sont indiquées pour chaque aide.',
               style: ts(9.5, color: PdfColors.grey700),
             ),
             pw.SizedBox(height: 10),
@@ -337,7 +357,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
             if (aidesNonReclamees.isNotEmpty) ...[
               section('${ecart != null && ecart.ecartTotal > 0 ? "4" : "3"}. Aides non reclamees'),
               pw.Text(
-                'Les aides suivantes semblent dues selon votre profil mais n\'ont pas ete declarees comme percues. Rapprochez-vous de votre CAF pour verifier votre dossier.',
+                'Les aides suivantes semblent dues selon votre profil mais n\'ont pas été déclarées comme perçues. Rapprochez-vous de votre CAF pour vérifier votre dossier.',
                 style: ts(9.5, color: PdfColors.grey700),
               ),
               pw.SizedBox(height: 8),
@@ -372,9 +392,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
             ],
 
             // ══ SOURCES LÉGALES ════════════════════════════════════════════════
-            section('Sources et references legales'),
+            section('Sources et références légales'),
             pw.Text(
-              'Ce rapport est etabli sur la base des baremes officiels en vigueur au 1er avril 2026 (Decrets n 2026-220 a 2026-229 du 30/03/2026). '
+              'Ce rapport est établi sur la base des barèmes officiels en vigueur au 1er avril 2026 (Décrets n° 2026-220 à 2026-229 du 30/03/2026). '
               'Les montants sont des estimations - le calcul definitif appartient a la CAF, qui peut tenir compte d\'elements non renseignes dans ce simulateur.\n\n'
               'References applicables a votre simulation :',
               style: ts(9, color: PdfColors.grey700),
@@ -443,23 +463,18 @@ class _ResultsScreenState extends State<ResultsScreen> {
     }
   }
 
-  Future<void> _loadUnlockStatus() async {
-    final unlocked = await PaymentService.isUnlockedForSim(widget.simId);
-    final justUnlocked = await PaymentService.consumeJustUnlocked();
-    if (mounted) {
-      setState(() {
-        _isUnlocked = unlocked;
-        _justUnlocked = justUnlocked;
-      });
-    }
-  }
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Vos droits'),
+        actions: [
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.edit_outlined, size: 16),
+            label: const Text('Modifier'),
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -1096,8 +1111,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            onPressed: () => PaymentService.saveSituationAndOpenStripe(
-                widget.situation, widget.simId),
+            onPressed: _openStripe,
             icon: const Icon(Icons.lock_open),
             label: const Text('Débloquer mon rapport — 0,99 €'),
             style: ElevatedButton.styleFrom(
@@ -1185,12 +1199,25 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   // ── EARLY CTA (ancré juste après le chiffre d'écart) ────────────────────
 
+  Future<void> _openStripe() async {
+    final ok = await PaymentService.saveSituationAndOpenStripe(
+        widget.situation, widget.simId);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+            'Impossible de sauvegarder — stockage local plein. '
+            'Videz le cache de votre navigateur et réessayez.'),
+        backgroundColor: Color(0xFFDC2626),
+        duration: Duration(seconds: 6),
+      ));
+    }
+  }
+
   Widget _buildEarlyCta() {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
-        onPressed: () => PaymentService.saveSituationAndOpenStripe(
-            widget.situation, widget.simId),
+        onPressed: _openStripe,
         icon: const Icon(Icons.lock_open, size: 18),
         label: const Text('Voir le rapport complet — 0,99 €'),
         style: ElevatedButton.styleFrom(

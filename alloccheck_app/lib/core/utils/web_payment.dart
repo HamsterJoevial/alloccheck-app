@@ -9,7 +9,13 @@ external void _jsLocationAssign(String url);
 external void _jsLocalStorageSetItem(String key, String value);
 
 /// Sauvegarde une paire clé/valeur en localStorage puis navigue vers [url].
-void webSaveSituationAndNavigate(String key, String value, String url) {
-  _jsLocalStorageSetItem(key, value);
-  _jsLocationAssign(url);
+/// Retourne false si le localStorage est plein ou indisponible.
+bool webSaveSituationAndNavigate(String key, String value, String url) {
+  try {
+    _jsLocalStorageSetItem(key, value);
+    _jsLocationAssign(url);
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
