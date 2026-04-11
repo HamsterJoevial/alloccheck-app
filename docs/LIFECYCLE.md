@@ -15,3 +15,4 @@
 | 2026-04-06 | v1.0.0 | /security-team | S0:2 S1:2 S2:2 S3:2 (total: 8) | docs/SECURITY_REPORT_2026-04-06.md |
 | 2026-04-06 | v1.0.0+1 | /ux-review | 18 observations ouvertes (UX0:2 UX1:5 UX2:7 UX3:4) | docs/UX_REVIEW_2026-04-06.md |
 | 2026-04-06 | v1.0.0+1 | /qa-team | P0:2 P1:5 P2:9 P3:6 (total: 22) | docs/QA_REPORT_2026-04-06.md |
+| 2026-04-11 | v1.0.0+1 | /qa-team | P0:3 P1:8 P2:11 P3:4 (total: 26) | docs/QA_REPORT_2026-04-11.md |

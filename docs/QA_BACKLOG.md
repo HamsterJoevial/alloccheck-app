@@ -1,22 +1,53 @@
-# QA -- Backlog des corrections
-*Derniere mise a jour : 2026-04-06*
-*Rapport complet : docs/QA_REPORT_2026-04-06.md*
+# QA — Backlog des corrections
+*Dernière mise à jour : 2026-04-11*
+*Rapport complet session 2 : docs/QA_REPORT_2026-04-11.md*
+*Rapport complet session 1 : docs/QA_REPORT_2026-04-06.md*
 
-## A corriger
+---
+*Session 2 — 2026-04-11*
 
-- [ ] QA-001 -- Tests echouent sur mobile (annotations @JS) (P0) -- voir rapport 2026-04-06
-- [ ] QA-002 -- Paywall contournable trivialement (P0) -- voir rapport 2026-04-06
-- [ ] QA-003 -- Dependance flutter_web_plugins non declaree (P1) -- voir rapport 2026-04-06
-- [ ] QA-004 -- Cast non securise route /results (P1) -- voir rapport 2026-04-06
-- [ ] QA-005 -- Cast non securise route /letter (P1) -- voir rapport 2026-04-06
-- [ ] QA-007 -- Aucune validation revenu conjoint (P1) -- voir rapport 2026-04-06
-- [ ] QA-008 -- _aahPlafondCouple inutilise (P2) -- voir rapport 2026-04-06
-- [ ] QA-010 -- Supabase URL/key en placeholder (P2) -- voir rapport 2026-04-06
-- [ ] QA-011 -- Deprecated RadioListTile groupValue/onChanged (P2) -- voir rapport 2026-04-06
-- [ ] QA-012 -- Situation stockee en localStorage en clair (P2) -- voir rapport 2026-04-06
-- [ ] QA-013 -- Aucun label Semantics (P2) -- voir rapport 2026-04-06
-- [ ] QA-014 -- Deserialisation fromJson sans try/catch (P2) -- voir rapport 2026-04-06
-- [ ] QA-015 -- Export PDF rapport ne fait rien sur mobile (P2) -- voir rapport 2026-04-06
+## À corriger
+
+### P0 — Bloquants
+
+- [ ] QA-001 — Token `AC2026UNLOCK` hardcodé dans le bundle JS (P0) — **session dédiée backend** — voir rapport 2026-04-11
+- [ ] QA-002 — Paywall 100% client-side bypassable via console (P0) — **session dédiée backend** (lié à QA-001) — voir rapport 2026-04-11
+- [ ] QA-003 — Enum `CongeParental` sérialisé par `.index` → corruption silencieuse des brouillons (P0) — voir rapport 2026-04-11
+
+### P1 — Importants
+
+- [ ] QA-004 — `fromJson()` sans `orElse` → crash sur données périmées (P1) — voir rapport 2026-04-11
+- [ ] QA-005 — PDF mobile = stub non fonctionnel, feature payante cassée (P1) — voir rapport 2026-04-11
+- [ ] QA-006 — `_clearDraft()` non awaité → race condition soumission (P1) — voir rapport 2026-04-11
+- [ ] QA-007 — Race condition `_calculate()` + `_loadUnlockStatus()` dans initState (P1) — voir rapport 2026-04-11
+- [ ] QA-008 — `jsonDecode` sans try/catch dans PaymentService → crash localStorage corrompu (P1) — voir rapport 2026-04-11
+- [ ] QA-009 — Brouillon non affiché si `nombreEnfants == 0` (P1) — voir rapport 2026-04-11
+- [ ] QA-010 — Zéro tests sur PaymentService (P1) — voir rapport 2026-04-11
+- [ ] QA-011 — `localizationsDelegates` absent → TalkBack en anglais (P1) — voir rapport 2026-04-11
+
+### P2 — Améliorations
+
+- [ ] QA-012 — Accents manquants dans les PDF (9+ occurrences) (P2) — voir rapport 2026-04-11
+- [ ] QA-013 — `CalculService` dead code (~300 lignes) + 3 unused_field warnings (P2) — voir rapport 2026-04-11
+- [ ] QA-014 — ARS affichée en équivalent mensuel (÷12) — doit être annuel + mention août (P2) — voir rapport 2026-04-11
+- [ ] QA-015 — `textSecondary` contraste 4.48:1 (sous seuil WCAG AA 4.5:1) (P2) — voir rapport 2026-04-11
+- [ ] QA-016 — `AppTheme.warning` contraste 2.9:1 sur blanc — illisible (P2) — voir rapport 2026-04-11
+- [ ] QA-017 — Widget `Radio` déprécié depuis Flutter 3.32 (4 warnings) (P2) — voir rapport 2026-04-11
+- [ ] QA-018 — `flutter_web_plugins` non déclaré en dépendance pubspec.yaml (P2) — voir rapport 2026-04-11
+- [ ] QA-019 — Pas de loader visible pendant `_calculate()` → flash écran blanc (P2) — voir rapport 2026-04-11
+- [ ] QA-020 — Pas de bouton "Modifier ma situation" depuis ResultsScreen (P2) — voir rapport 2026-04-11
+- [ ] QA-021 — `webSaveSituationAndNavigate` peut échouer silencieusement (localStorage plein) (P2) — voir rapport 2026-04-11
+- [ ] QA-022 — `_pendingSimKey` jamais nettoyé si paiement abandonné (P2) — voir rapport 2026-04-11
+
+### P3 — Suggestions
+
+- [ ] QA-023 — Widgets statiques non `const` dans ResultsScreen (P3) — voir rapport 2026-04-11
+- [ ] QA-024 — Pas de bouton "Partager" le PDF via `share_plus` (P3) — voir rapport 2026-04-11
+- [ ] QA-025 — Pas d'explication "Qu'est-ce que la CAF ?" pour nouveaux utilisateurs SEO (P3) — voir rapport 2026-04-11
+- [ ] QA-026 — Aucun test d'intégration flow simulation → résultats (P3) — voir rapport 2026-04-11
+
+---
+*Session 1 — 2026-04-06 (issues non encore traitées)*
 
 ## Connus / Dettes acceptees
 

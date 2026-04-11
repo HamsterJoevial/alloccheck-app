@@ -9,6 +9,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
   cupertino_icons: ^1.0.8
   # Supabase (branché plus tard — projet lakxgpzweyevwdfhatvy)
   supabase_flutter: ^2.9.0

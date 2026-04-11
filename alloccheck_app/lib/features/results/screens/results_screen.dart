@@ -33,8 +33,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
   @override
   void initState() {
     super.initState();
-    _calculate();
-    _loadUnlockStatus();
+    _initScreen();
+  }
+
+  Future<void> _initScreen() async {
+    await _calculate();
+    await _loadUnlockStatus();
   }
 
   Future<void> _calculate() async {
@@ -398,8 +402,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
       if (kIsWeb) {
         downloadPdfWeb(bytes, 'rapport_alloccheck_${now.millisecondsSinceEpoch}.pdf');
       } else {
-        // ignore: deprecated_member_use
-        final _ = bytes;
+        await Printing.sharePdf(
+          bytes: bytes,
+          filename: 'rapport_alloccheck_${now.millisecondsSinceEpoch}.pdf',
+        );
       }
     } catch (e) {
       if (mounted) {

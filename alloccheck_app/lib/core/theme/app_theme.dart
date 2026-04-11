@@ -10,11 +10,11 @@ class AppTheme {
   static const Color secondary = Color(0xFF059669); // Vert succès / argent récupéré
   static const Color secondaryLight = Color(0xFF10B981);
   static const Color error = Color(0xFFDC2626);
-  static const Color warning = Color(0xFFF59E0B);
+  static const Color warning = Color(0xFFB45309); // WCAG AA ≥4.5:1 sur blanc (amber-700)
   static const Color surface = Color(0xFFF8FAFC);
   static const Color background = Color(0xFFFFFFFF);
   static const Color textPrimary = Color(0xFF1E293B);
-  static const Color textSecondary = Color(0xFF64748B);
+  static const Color textSecondary = Color(0xFF475569); // WCAG AA ≥4.5:1 sur blanc
   static const Color border = Color(0xFFE2E8F0);
 
   // Couleurs par aide

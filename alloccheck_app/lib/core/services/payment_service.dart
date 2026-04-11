@@ -30,8 +30,8 @@ class PaymentService {
   /// Retourne le simId débloqué, ou null si pas de paiement détecté.
   static Future<String?> checkUrlAndUnlock({String? urlToken}) async {
     final token = urlToken ?? Uri.base.queryParameters['paid'];
+    final prefs = await SharedPreferences.getInstance();
     if (token == _validToken) {
-      final prefs = await SharedPreferences.getInstance();
       // Récupère le simId sauvegardé avant le redirect Stripe
       final simId = prefs.getString(_pendingSimKey) ??
           DateTime.now().millisecondsSinceEpoch.toString();
@@ -40,6 +40,8 @@ class PaymentService {
       await prefs.setBool(_justUnlockedKey, true);
       return simId;
     }
+    // Aucun paiement détecté — nettoyer le simId en attente si présent
+    await prefs.remove(_pendingSimKey);
     return null;
   }
 
@@ -79,7 +81,12 @@ class PaymentService {
     final prefs = await SharedPreferences.getInstance();
     final jsonStr = prefs.getString(_situationKey);
     if (jsonStr == null) return null;
-    return Situation.fromJson(jsonDecode(jsonStr) as Map<String, dynamic>);
+    try {
+      return Situation.fromJson(jsonDecode(jsonStr) as Map<String, dynamic>);
+    } catch (_) {
+      await prefs.remove(_situationKey);
+      return null;
+    }
   }
 
   static Future<void> clearSavedSituation() async {
@@ -103,7 +110,12 @@ class PaymentService {
     final prefs = await SharedPreferences.getInstance();
     final jsonStr = prefs.getString(_lastSimulationKey);
     if (jsonStr == null) return null;
-    return Situation.fromJson(jsonDecode(jsonStr) as Map<String, dynamic>);
+    try {
+      return Situation.fromJson(jsonDecode(jsonStr) as Map<String, dynamic>);
+    } catch (_) {
+      await prefs.remove(_lastSimulationKey);
+      return null;
+    }
   }
 
   static Future<String?> getLastSimulationSimId() async {

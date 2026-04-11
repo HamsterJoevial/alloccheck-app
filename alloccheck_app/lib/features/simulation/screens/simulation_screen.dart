@@ -154,7 +154,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
   Future<void> _saveDraft() async {
     final prefs = await SharedPreferences.getInstance();
     final data = <String, dynamic>{
-      'statutConjugal': _statutConjugal.index,
+      'statutConjugal': _statutConjugal.name,
       'nombreEnfants': _nombreEnfants,
       'agesEnfants': _agesEnfants,
       'versePension': _versePension,
@@ -162,45 +162,39 @@ class _SimulationScreenState extends State<SimulationScreen> {
       'pensionNonPercue': _pensionNonPercue,
       'pensionVersee': _pensionVerseeController.text,
       'pensionRecue': _pensionRecueController.text,
-      'situationVie': _situationVie.index,
+      'situationVie': _situationVie.name,
       'besoinTiercePersonne': _besoinTiercePersonne,
-      'sourceRevenuDemandeur': _sourceRevenuDemandeur.index,
+      'sourceRevenuDemandeur': _sourceRevenuDemandeur.name,
       'revenuDemandeur': _revenuDemandeurController.text,
-      'sourceRevenuConjoint': _sourceRevenuConjoint.index,
+      'sourceRevenuConjoint': _sourceRevenuConjoint.name,
       'revenuConjoint': _revenuConjointController.text,
-      'zoneLogement': _zoneLogement.index,
-      'statutLogement': _statutLogement.index,
+      'zoneLogement': _zoneLogement.name,
+      'statutLogement': _statutLogement.name,
       'loyer': _loyerController.text,
       'codePostal': _codePostalController.text,
       'logementConventionne': _logementConventionne,
-      'modeGarde': _modeGarde.index,
-      'congeParental': _congeParental.index,
+      'modeGarde': _modeGarde.name,
+      'congeParental': _congeParental.name,
       'gardeAlternee': _gardeAlternee,
       'aHandicap': _aHandicap,
       'tauxHandicap': _tauxHandicap,
       'percevaitAAH': _percevaitAAH,
       'aEnfantHandicap': _aEnfantHandicap,
       'tauxHandicapEnfants': _tauxHandicapEnfants,
-      'autresRevenusActifs': _autresRevenusActifs.map((k, v) => MapEntry(k.index.toString(), v)),
-      'autresRevenus': _autresRevenusControllers.map((k, v) => MapEntry(k.index.toString(), v.text)),
+      'autresRevenusActifs': _autresRevenusActifs.map((k, v) => MapEntry(k.name, v)),
+      'autresRevenus': _autresRevenusControllers.map((k, v) => MapEntry(k.name, v.text)),
       'percuActifs': Map<String, dynamic>.from(_percuActifs),
       'percuMontants': _percuControllers.map((k, v) => MapEntry(k, v.text)),
     };
-    await prefs.setString('sim_draft_v2', jsonEncode(data));
+    await prefs.setString('sim_draft_v3', jsonEncode(data));
   }
 
   Future<void> _loadDraft() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('sim_draft_v2');
+    final raw = prefs.getString('sim_draft_v3');
     if (raw == null || raw.isEmpty) return;
     try {
-      final data = jsonDecode(raw) as Map<String, dynamic>;
-      // Show banner only if draft has non-trivial content
-      final nombreEnfants = data['nombreEnfants'] as int? ?? 0;
-      final aHandicap = data['aHandicap'] as bool? ?? false;
-      final percuActifs = data['percuActifs'] as Map? ?? {};
-      final hasPercuActif = percuActifs.values.any((v) => v == true);
-      if (nombreEnfants == 0 && !aHandicap && !hasPercuActif) return;
+      jsonDecode(raw); // validate JSON
       if (mounted) setState(() => _showResumeBanner = true);
     } catch (_) {
       // Draft corrupt — ignore
@@ -209,12 +203,13 @@ class _SimulationScreenState extends State<SimulationScreen> {
 
   Future<void> _applyDraft() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('sim_draft_v2');
+    final raw = prefs.getString('sim_draft_v3');
     if (raw == null) return;
     try {
       final data = jsonDecode(raw) as Map<String, dynamic>;
       setState(() {
-        _statutConjugal = StatutConjugal.values[_intOf(data['statutConjugal'], 0)];
+        _statutConjugal = StatutConjugal.values.firstWhere(
+          (e) => e.name == data['statutConjugal'], orElse: () => StatutConjugal.celibataire);
         _nombreEnfants = _intOf(data['nombreEnfants'], 0);
         final ages = (data['agesEnfants'] as List?)?.map((e) => _intOf(e, 5)).toList() ?? [];
         _agesEnfants..clear()..addAll(ages);
@@ -223,19 +218,26 @@ class _SimulationScreenState extends State<SimulationScreen> {
         _pensionNonPercue = data['pensionNonPercue'] as bool? ?? false;
         _pensionVerseeController.text = data['pensionVersee'] as String? ?? '';
         _pensionRecueController.text = data['pensionRecue'] as String? ?? '';
-        _situationVie = SituationVie.values[_intOf(data['situationVie'], 0)];
+        _situationVie = SituationVie.values.firstWhere(
+          (e) => e.name == data['situationVie'], orElse: () => SituationVie.autonome);
         _besoinTiercePersonne = data['besoinTiercePersonne'] as bool? ?? false;
-        _sourceRevenuDemandeur = SourceRevenuActivite.values[_intOf(data['sourceRevenuDemandeur'], 0)];
+        _sourceRevenuDemandeur = SourceRevenuActivite.values.firstWhere(
+          (e) => e.name == data['sourceRevenuDemandeur'], orElse: () => SourceRevenuActivite.aucun);
         _revenuDemandeurController.text = data['revenuDemandeur'] as String? ?? '';
-        _sourceRevenuConjoint = SourceRevenuActivite.values[_intOf(data['sourceRevenuConjoint'], 0)];
+        _sourceRevenuConjoint = SourceRevenuActivite.values.firstWhere(
+          (e) => e.name == data['sourceRevenuConjoint'], orElse: () => SourceRevenuActivite.aucun);
         _revenuConjointController.text = data['revenuConjoint'] as String? ?? '';
-        _zoneLogement = ZoneLogement.values[_intOf(data['zoneLogement'], 1)];
-        _statutLogement = StatutLogement.values[_intOf(data['statutLogement'], 0)];
+        _zoneLogement = ZoneLogement.values.firstWhere(
+          (e) => e.name == data['zoneLogement'], orElse: () => ZoneLogement.zone2);
+        _statutLogement = StatutLogement.values.firstWhere(
+          (e) => e.name == data['statutLogement'], orElse: () => StatutLogement.locataire);
         _loyerController.text = data['loyer'] as String? ?? '';
         _codePostalController.text = data['codePostal'] as String? ?? '';
         _logementConventionne = data['logementConventionne'] as bool? ?? true;
-        _modeGarde = ModeGarde.values[_intOf(data['modeGarde'], 0)];
-        _congeParental = CongeParental.values[_intOf(data['congeParental'], 0)];
+        _modeGarde = ModeGarde.values.firstWhere(
+          (e) => e.name == data['modeGarde'], orElse: () => ModeGarde.aucun);
+        _congeParental = CongeParental.values.firstWhere(
+          (e) => e.name == data['congeParental'], orElse: () => CongeParental.aucun);
         _gardeAlternee = data['gardeAlternee'] as bool? ?? false;
         _aHandicap = data['aHandicap'] as bool? ?? false;
         _tauxHandicap = _intOf(data['tauxHandicap'], 80);
@@ -246,13 +248,13 @@ class _SimulationScreenState extends State<SimulationScreen> {
         final autresActifs = data['autresRevenusActifs'] as Map?;
         if (autresActifs != null) {
           for (final type in TypeAutreRevenu.values) {
-            _autresRevenusActifs[type] = autresActifs[type.index.toString()] as bool? ?? false;
+            _autresRevenusActifs[type] = autresActifs[type.name] as bool? ?? false;
           }
         }
         final autresMontants = data['autresRevenus'] as Map?;
         if (autresMontants != null) {
           for (final type in TypeAutreRevenu.values) {
-            _autresRevenusControllers[type]!.text = autresMontants[type.index.toString()] as String? ?? '';
+            _autresRevenusControllers[type]!.text = autresMontants[type.name] as String? ?? '';
           }
         }
         final percuActifs = data['percuActifs'] as Map?;
@@ -370,7 +372,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
     }
   }
 
-  void _submitSimulation() {
+  Future<void> _submitSimulation() async {
     // Construire la liste des autres revenus cochés
     final autresRevenus = <AutreRevenu>[];
     for (final entry in _autresRevenusActifs.entries) {
@@ -442,7 +444,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
     );
 
     final simId = DateTime.now().millisecondsSinceEpoch.toString();
-    _clearDraft();
+    await _clearDraft();
     Navigator.of(context).pushNamed('/results', arguments: {
       'situation': situation,
       'simId': simId,

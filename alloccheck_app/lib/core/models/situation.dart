@@ -136,7 +136,8 @@ class Situation {
     // Rétrocompatibilité : si 'sc' absent, dériver depuis l'ancien 'sf'
     StatutConjugal sc;
     if (j.containsKey('sc')) {
-      sc = StatutConjugal.values.firstWhere((e) => e.name == j['sc']);
+      sc = StatutConjugal.values.firstWhere((e) => e.name == j['sc'],
+          orElse: () => StatutConjugal.celibataire);
     } else if (j.containsKey('sf')) {
       final sf = j['sf'] as String;
       sc = sf == 'couple' ? StatutConjugal.concubin : StatutConjugal.celibataire;
@@ -150,41 +151,44 @@ class Situation {
       agesEnfants: List<int>.from(j['ae'] ?? []),
       sourceRevenuDemandeur: j['srd'] != null
           ? SourceRevenuActivite.values
-              .firstWhere((e) => e.name == j['srd'])
+              .firstWhere((e) => e.name == j['srd'], orElse: () => SourceRevenuActivite.aucun)
           : null,
       revenuActiviteDemandeur: (j['rad'] as num).toDouble(),
       sourceRevenuConjoint: j['src'] != null
           ? SourceRevenuActivite.values
-              .firstWhere((e) => e.name == j['src'])
+              .firstWhere((e) => e.name == j['src'], orElse: () => SourceRevenuActivite.aucun)
           : null,
       revenuActiviteConjoint: (j['rac'] as num? ?? 0).toDouble(),
       autresRevenus: (j['ar'] as List<dynamic>? ?? []).map((r) {
         final map = r as Map<String, dynamic>;
         return AutreRevenu(
           type: TypeAutreRevenu.values
-              .firstWhere((e) => e.name == map['t']),
+              .firstWhere((e) => e.name == map['t'], orElse: () => TypeAutreRevenu.autreRevenu),
           montantMensuel: (map['m'] as num).toDouble(),
         );
       }).toList(),
       pensionAlimentaireVersee: (j['pav'] as num? ?? 0).toDouble(),
       pensionAlimentaireNonPercue: j['panp'] as bool? ?? false,
-      zoneLogement:
-          ZoneLogement.values.firstWhere((e) => e.name == j['zl']),
+      zoneLogement: ZoneLogement.values.firstWhere((e) => e.name == j['zl'],
+          orElse: () => ZoneLogement.zone2),
       loyerMensuel: (j['lm'] as num).toDouble(),
-      statutLogement:
-          StatutLogement.values.firstWhere((e) => e.name == j['sl']),
+      statutLogement: StatutLogement.values.firstWhere((e) => e.name == j['sl'],
+          orElse: () => StatutLogement.locataire),
       logementConventionne: j['lc'] as bool?,
       tauxHandicap: j['th'] as int?,
       situationVie: j['sv'] != null
-          ? SituationVie.values.firstWhere((e) => e.name == j['sv'])
+          ? SituationVie.values.firstWhere((e) => e.name == j['sv'],
+              orElse: () => SituationVie.autonome)
           : SituationVie.autonome,
       besoinTiercePersonne: j['btp'] as bool? ?? false,
       tauxHandicapEnfants: List<int>.from(j['the'] ?? []),
       modeGarde: j['mg'] != null
-          ? ModeGarde.values.firstWhere((e) => e.name == j['mg'])
+          ? ModeGarde.values.firstWhere((e) => e.name == j['mg'],
+              orElse: () => ModeGarde.aucun)
           : ModeGarde.aucun,
       congeParental: j['cp'] != null
-          ? CongeParental.values.firstWhere((e) => e.name == j['cp'])
+          ? CongeParental.values.firstWhere((e) => e.name == j['cp'],
+              orElse: () => CongeParental.aucun)
           : CongeParental.aucun,
       gardeAlternee: j['ga'] as bool? ?? false,
       montantPercu: j['mp'] != null

@@ -69,4 +69,4 @@ Les modifications du site peuvent se faire depuis n'importe quel projet. Les fic
 - Landing dédiée : non
 - Description visible sur le site : non — sera ajoutée uniquement lors de la soumission App Store
 
-Après chaque modification du site : mettre à jour `APPS_REGISTRY.md` + pousser depuis `FlowForgesSite/site/`.
+Après chaque modification du site : mettre à jour `APPS_REGISTRY.md` + commit + `git push origin main` + **`./deploy.sh`** (OBLIGATOIRE — sans deploy.sh le site live ne sera PAS mis à jour). Voir `FlowForgesSite/CLAUDE.md` pour l'architecture complète.
