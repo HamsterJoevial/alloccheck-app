@@ -41,6 +41,12 @@
 
   <title>AllocCheck — Vérifiez vos droits CAF</title>
   <link rel="manifest" href="manifest.json">
+  <script>
+    // Capture query params avant init Flutter (Uri.base ne les lit pas à cause de <base href>)
+    var _params = new URLSearchParams(window.location.search);
+    window.alloccheckUnlockMode = _params.get('unlock') === 'true';
+    window.alloccheckSessionId = _params.get('session_id') || null;
+  </script>
 </head>
 <body>
   <!--
